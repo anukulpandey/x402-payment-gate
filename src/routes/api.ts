@@ -154,14 +154,52 @@ apiRouter.get('/stats', (req, res) => {
   const owner = ownerOf(req);
   const calls = store.callsForOwner(owner);
   const paid = calls.filter((c) => c.paid);
+  const earningsUsd = round6(paid.reduce((s, c) => s + c.sellerEarningsUsd, 0));
+  const withdrawnUsd = round6(store.withdrawnUsdForOwner(owner));
   res.json({
     endpoints: store.listEndpoints(owner).length,
     totalRequests: calls.length,
     paidCalls: paid.length,
     grossUsd: round6(paid.reduce((s, c) => s + c.amountUsd, 0)),
-    earningsUsd: round6(paid.reduce((s, c) => s + c.sellerEarningsUsd, 0)),
+    earningsUsd,
     feeUsd: round6(paid.reduce((s, c) => s + c.platformFeeUsd, 0)),
+    withdrawnUsd,
+    availableUsd: round6(Math.max(0, earningsUsd - withdrawnUsd)),
+    canWithdraw: isLive && !!config.platformPrivateKey,
+    lastWithdrawal: store.withdrawalsForOwner(owner)[0] ?? null,
   });
+});
+
+// ── Withdraw earned USDC to your wallet (on-chain payout). ──
+function explorerTx(hash: string): string {
+  if (config.chainId === 43113) return `https://testnet.snowtrace.io/tx/${hash}`;
+  if (config.chainId === 43114) return `https://snowtrace.io/tx/${hash}`;
+  return hash;
+}
+
+apiRouter.post('/withdraw', async (req, res) => {
+  const owner = ownerOf(req);
+  if (!isLive || !config.platformPrivateKey) {
+    res.status(400).json({ error: 'Withdrawals require chain mode with a funded platform wallet.' });
+    return;
+  }
+  const paid = store.callsForOwner(owner).filter((c) => c.paid);
+  const earningsUsd = round6(paid.reduce((s, c) => s + c.sellerEarningsUsd, 0));
+  const withdrawnUsd = round6(store.withdrawnUsdForOwner(owner));
+  const availableUsd = round6(earningsUsd - withdrawnUsd);
+  const atomic = BigInt(Math.round(availableUsd * 10 ** config.usdcDecimals));
+  if (atomic <= 0n) {
+    res.status(400).json({ error: 'Nothing to withdraw yet.' });
+    return;
+  }
+  try {
+    const { payoutUsdc } = await import('../x402/chain.js');
+    const txHash = await payoutUsdc(owner, atomic);
+    store.addWithdrawal({ id: nanoid(10), ownerAddress: owner, amountUsd: availableUsd, txHash, ts: Date.now() });
+    res.json({ txHash, amountUsd: availableUsd, to: owner, explorerUrl: explorerTx(txHash) });
+  } catch (err) {
+    res.status(500).json({ error: 'Payout failed', detail: err instanceof Error ? err.message : String(err) });
+  }
 });
 
 // ── Agent playground: run the full pay round-trip and return a transcript. ──

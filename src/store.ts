@@ -1,21 +1,26 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from './config.js';
-import type { GatedEndpoint, CallRecord } from './types.js';
+import type { GatedEndpoint, CallRecord, Withdrawal } from './types.js';
 
 interface DB {
   endpoints: GatedEndpoint[];
   calls: CallRecord[];
+  withdrawals: Withdrawal[];
 }
 
 const dbPath = path.resolve(config.dataDir, 'db.json');
-let db: DB = { endpoints: [], calls: [] };
+let db: DB = { endpoints: [], calls: [], withdrawals: [] };
 
 function load() {
   try {
     if (fs.existsSync(dbPath)) {
       const parsed = JSON.parse(fs.readFileSync(dbPath, 'utf8')) as Partial<DB>;
-      db = { endpoints: parsed.endpoints ?? [], calls: parsed.calls ?? [] };
+      db = {
+        endpoints: parsed.endpoints ?? [],
+        calls: parsed.calls ?? [],
+        withdrawals: parsed.withdrawals ?? [],
+      };
     }
   } catch (err) {
     console.error('[store] failed to load db, starting fresh:', err);
@@ -112,5 +117,16 @@ export const store = {
   },
   allCalls(): CallRecord[] {
     return db.calls;
+  },
+  addWithdrawal(w: Withdrawal): Withdrawal {
+    db.withdrawals.unshift(w);
+    persist();
+    return w;
+  },
+  withdrawalsForOwner(owner: string): Withdrawal[] {
+    return db.withdrawals.filter((w) => w.ownerAddress === owner);
+  },
+  withdrawnUsdForOwner(owner: string): number {
+    return db.withdrawals.filter((w) => w.ownerAddress === owner).reduce((s, w) => s + w.amountUsd, 0);
   },
 };

@@ -41,3 +41,12 @@ export interface CallRecord {
   network: string;
   durationMs: number;
 }
+
+/** An on-chain payout of a seller's earned USDC to their wallet. */
+export interface Withdrawal {
+  id: string;
+  ownerAddress: string;
+  amountUsd: number;
+  txHash: string;
+  ts: number;
+}

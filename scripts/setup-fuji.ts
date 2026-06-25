@@ -65,9 +65,10 @@ FACILITATOR_PRIVATE_KEY=${facilitatorKey}
 # Demo agent — gets MockUSDC from the deploy step (no AVAX needed).
 AGENT_PRIVATE_KEY=${agentKey}
 
-# Revenue address (sweep with PLATFORM_PRIVATE_KEY below if you like).
+# Platform treasury: receives gross USDC, pays out each seller's share on withdrawal.
+# Fund it with a little AVAX so it can pay payout gas.
 PLATFORM_WALLET=${platformAddr}
-# PLATFORM_PRIVATE_KEY=${platformKey}
+PLATFORM_PRIVATE_KEY=${platformKey}
 PLATFORM_FEE_BPS=1000
 
 PORT=4021

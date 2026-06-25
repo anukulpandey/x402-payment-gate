@@ -19,6 +19,7 @@ import type { VerifyResult, SettleResult } from './facilitator.js';
 const USDC_ABI = parseAbi([
   'function balanceOf(address) view returns (uint256)',
   'function authorizationState(address,bytes32) view returns (bool)',
+  'function transfer(address to,uint256 value) returns (bool)',
   'function transferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce,bytes signature)',
 ]);
 
@@ -56,6 +57,46 @@ function getClients() {
 
 export function facilitatorAddress(): string {
   return getClients().facilitator;
+}
+
+// Platform wallet client — signs seller payout (withdrawal) transfers. It holds
+// the gross USDC collected from settlements and pays out each seller's share.
+let platformWallet: WalletClient | null = null;
+function getPlatformWallet(): WalletClient {
+  if (!config.platformPrivateKey) {
+    throw new Error('PLATFORM_PRIVATE_KEY is not set — withdrawals are disabled.');
+  }
+  if (!platformWallet) {
+    const chain = defineChain({
+      id: config.chainId,
+      name: config.network,
+      nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+      rpcUrls: { default: { http: [config.rpcUrl] } },
+    });
+    platformWallet = createWalletClient({
+      account: privateKeyToAccount(config.platformPrivateKey),
+      chain,
+      transport: http(config.rpcUrl),
+    });
+  }
+  return platformWallet;
+}
+
+/** Pay out USDC from the platform wallet to a seller's wallet. Returns the tx hash. */
+export async function payoutUsdc(to: string, atomic: bigint): Promise<`0x${string}`> {
+  const wallet = getPlatformWallet();
+  const { pub } = getClients();
+  const hash = await wallet.writeContract({
+    address: config.usdcAddress,
+    abi: USDC_ABI,
+    functionName: 'transfer',
+    args: [to as `0x${string}`, atomic],
+    chain: null,
+    account: wallet.account ?? null,
+  });
+  const receipt = await pub.waitForTransactionReceipt({ hash });
+  if (receipt.status !== 'success') throw new Error('payout transfer reverted');
+  return hash;
 }
 
 /** Read an account's USDC balance (atomic units). */

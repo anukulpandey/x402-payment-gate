@@ -5,6 +5,7 @@ import { useWallet } from '../lib/wallet';
 import { Container, Card, Button, Badge, Spinner, btn } from '../components/ui';
 import { WalletButton } from '../components/WalletButton';
 import { StatsBar } from '../components/StatsBar';
+import { PayoutsCard } from '../components/PayoutsCard';
 import { GateForm } from '../components/GateForm';
 import { EndpointCard } from '../components/EndpointCard';
 import { CallFeed } from '../components/CallFeed';
@@ -120,6 +121,8 @@ function DashboardContent({ address }: { address: string }) {
       </div>
 
       <StatsBar stats={stats} />
+
+      <PayoutsCard stats={stats} address={address} onWithdrawn={refresh} />
 
       <GateForm onCreated={refresh} />
 

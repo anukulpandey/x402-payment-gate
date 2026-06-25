@@ -4,7 +4,7 @@ import { Card, cx } from './ui';
 
 export function StatsBar({ stats }: { stats: SellerStats | null }) {
   const tiles = [
-    { label: 'Your earnings', value: usd(stats?.earningsUsd ?? 0), hint: 'paid to your wallet', accent: true },
+    { label: 'Your earnings', value: usd(stats?.earningsUsd ?? 0), hint: 'your 90% — withdraw below', accent: true },
     { label: 'Gross volume', value: usd(stats?.grossUsd ?? 0), hint: 'total agents paid you' },
     { label: 'Paid calls', value: String(stats?.paidCalls ?? 0), hint: 'settled requests' },
     { label: 'GateKeep fee', value: usd(stats?.feeUsd ?? 0), hint: 'flat 10% cut' },

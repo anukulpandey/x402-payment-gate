@@ -12,6 +12,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["cross-env", "PORT=4090", "tsx", "src/server.ts"],
       "port": 4090
+    },
+    {
+      "name": "gatekeep-fuji",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["cross-env", "DOTENV_CONFIG_PATH=.env.fuji", "PORT=4021", "tsx", "src/server.ts"],
+      "port": 4021
     }
   ]
 }

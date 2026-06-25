@@ -34,6 +34,14 @@ export interface Endpoint {
   stats: EndpointStats;
 }
 
+export interface Withdrawal {
+  id: string;
+  ownerAddress: string;
+  amountUsd: number;
+  txHash: string;
+  ts: number;
+}
+
 export interface SellerStats {
   endpoints: number;
   totalRequests: number;
@@ -41,6 +49,17 @@ export interface SellerStats {
   grossUsd: number;
   earningsUsd: number;
   feeUsd: number;
+  withdrawnUsd: number;
+  availableUsd: number;
+  canWithdraw: boolean;
+  lastWithdrawal: Withdrawal | null;
+}
+
+export interface WithdrawResult {
+  txHash: string;
+  amountUsd: number;
+  to: string;
+  explorerUrl: string;
 }
 
 export interface CallRecord {
@@ -116,6 +135,7 @@ export const api = {
   // seller resources
   endpoints: () => req<Endpoint[]>('/api/endpoints'),
   stats: () => req<SellerStats>('/api/stats'),
+  withdraw: () => req<WithdrawResult>('/api/withdraw', { method: 'POST' }),
   calls: (limit = 30) => req<CallRecord[]>(`/api/calls?limit=${limit}`),
   loadExamples: () => req<{ added: number; endpoints: Endpoint[] }>('/api/examples', jsonInit('POST', {})),
   create: (body: NewEndpoint) => req<Endpoint>('/api/endpoints', jsonInit('POST', body)),
