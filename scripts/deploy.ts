@@ -15,7 +15,6 @@ import {
   http,
   parseUnits,
   formatUnits,
-  getContractAddress,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { config } from '../src/config.js';
@@ -43,21 +42,23 @@ async function main() {
   log(`\n  Deploying to ${config.network} (chainId ${config.chainId}) via ${config.rpcUrl}`);
   log(`  deployer / facilitator: ${deployer.address}`);
 
-  // Reuse an existing deployment if present (lets you re-run without resetting Anvil).
-  let usdc = config.usdcAddress;
-  const existing = await pub.getBytecode({ address: usdc }).catch(() => undefined);
-  if (existing && existing !== '0x') {
+  // Only reuse a token if USDC_ADDRESS was EXPLICITLY provided. The default is
+  // Anvil's deterministic first-deploy address, which must never be assumed on a
+  // public network (something unrelated could live there).
+  const explicit =
+    process.env.USDC_ADDRESS && /^0x[0-9a-fA-F]{40}$/.test(process.env.USDC_ADDRESS)
+      ? (process.env.USDC_ADDRESS as `0x${string}`)
+      : null;
+  let usdc: `0x${string}`;
+  const existing = explicit ? await pub.getBytecode({ address: explicit }).catch(() => undefined) : undefined;
+  if (explicit && existing && existing !== '0x') {
+    usdc = explicit;
     log(`  MockUSDC already deployed at ${usdc} — reusing.`);
   } else {
-    const predicted = getContractAddress({ from: deployer.address, nonce: await pub.getTransactionCount({ address: deployer.address }) });
     const hash = await wallet.deployContract({ abi: artifact.abi, bytecode: artifact.bytecode });
     const receipt = await pub.waitForTransactionReceipt({ hash });
     usdc = receipt.contractAddress!;
     log(`  MockUSDC deployed at ${usdc}`);
-    if (usdc.toLowerCase() !== config.usdcAddress.toLowerCase()) {
-      log(`\n  ⚠️  Deployed address ${usdc} != configured USDC_ADDRESS ${config.usdcAddress}`);
-      log(`     (predicted ${predicted}). Set USDC_ADDRESS=${usdc} or reset Anvil so this is the first tx.\n`);
-    }
   }
 
   // Mint test USDC to the demo agent.
