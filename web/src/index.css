@@ -2,10 +2,12 @@
 
 @theme {
   --color-accent-50: #eef2ff;
+  --color-accent-200: #c7d2fe;
   --color-accent-300: #a5b4fc;
   --color-accent-400: #818cf8;
   --color-accent-500: #6366f1;
   --color-accent-600: #4f46e5;
+  --color-accent-700: #4338ca;
   --font-mono: 'SF Mono', 'JetBrains Mono', ui-monospace, 'Menlo', monospace;
 }
 
@@ -13,25 +15,45 @@
   color-scheme: dark;
 }
 
+html {
+  scroll-behavior: smooth;
+}
 html,
 body,
 #root {
-  height: 100%;
+  min-height: 100%;
 }
 
 body {
   margin: 0;
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  background-color: #07070c;
-  background-image:
-    radial-gradient(60rem 60rem at 85% -10%, rgba(99, 102, 241, 0.16), transparent 60%),
-    radial-gradient(48rem 48rem at -10% 0%, rgba(16, 185, 129, 0.08), transparent 55%);
-  background-attachment: fixed;
+  background-color: #06060b;
   color: #e2e8f0;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Thin, dark scrollbars to match the UI. */
+/* Subtle dotted grid used behind hero / section backdrops. */
+.grid-bg {
+  background-image:
+    radial-gradient(60rem 60rem at 80% -10%, rgba(99, 102, 241, 0.18), transparent 60%),
+    radial-gradient(48rem 48rem at 0% 0%, rgba(16, 185, 129, 0.07), transparent 55%),
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    100% 100%,
+    44px 44px,
+    44px 44px;
+}
+
+.gradient-text {
+  background: linear-gradient(100deg, #fff 10%, #a5b4fc 55%, #818cf8 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Thin dark scrollbars. */
 * {
   scrollbar-width: thin;
   scrollbar-color: #2a2a3a transparent;
@@ -48,7 +70,7 @@ body {
 @keyframes fadeUp {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -56,7 +78,7 @@ body {
   }
 }
 .fade-up {
-  animation: fadeUp 0.35s ease both;
+  animation: fadeUp 0.45s ease both;
 }
 
 @keyframes pulseRing {
@@ -69,4 +91,16 @@ body {
 }
 .pulse-ring {
   animation: pulseRing 1.4s ease-out infinite;
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.marquee {
+  animation: marquee 22s linear infinite;
 }

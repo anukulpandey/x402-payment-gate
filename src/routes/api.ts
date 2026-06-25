@@ -6,27 +6,27 @@ import { store } from '../store.js';
 import { round6, splitRevenue } from '../revenue.js';
 import { addressForKey, signPayment } from '../x402/signer.js';
 import { encodePaymentHeader } from '../x402/protocol.js';
-import type { GatedEndpoint, CallRecord } from '../types.js';
+import { requireAuth, ownerOf } from '../auth.js';
+import { EXAMPLES } from '../seed.js';
+import type { GatedEndpoint } from '../types.js';
 
 export const apiRouter = Router();
 
 const agentAddress = addressForKey(config.agentPrivateKey);
 
-// ── Exposed runtime config (consumed by the dashboard). ──
+// ── Public runtime config (consumed by the dashboard + wallet). ──
 apiRouter.get('/config', (_req, res) => {
   res.json({
     mode: config.mode,
     live: isLive,
     network: config.network,
+    chainId: config.chainId,
     publicBaseUrl: config.publicBaseUrl,
     platformWallet: config.platformWallet,
     platformFeeBps: config.platformFeeBps,
     platformFeeRate,
     agentAddress,
-    // chain-mode details (null in mock mode)
-    chain: isLive
-      ? { chainId: config.chainId, rpcUrl: config.rpcUrl, usdcAddress: config.usdcAddress }
-      : null,
+    chain: isLive ? { chainId: config.chainId, rpcUrl: config.rpcUrl, usdcAddress: config.usdcAddress } : null,
   });
 });
 
@@ -38,23 +38,22 @@ function endpointStats(id: string) {
     totalRequests: calls.length,
     paidCalls: paid.length,
     grossUsd: round6(paid.reduce((s, c) => s + c.amountUsd, 0)),
-    sellerEarningsUsd: round6(paid.reduce((s, c) => s + c.sellerEarningsUsd, 0)),
-    platformFeeUsd: round6(paid.reduce((s, c) => s + c.platformFeeUsd, 0)),
+    earningsUsd: round6(paid.reduce((s, c) => s + c.sellerEarningsUsd, 0)),
+    feeUsd: round6(paid.reduce((s, c) => s + c.platformFeeUsd, 0)),
     lastCallTs: calls[0]?.ts,
   };
 }
 
 function withStats(e: GatedEndpoint) {
-  return {
-    ...e,
-    gatedUrl: `${config.publicBaseUrl}/g/${e.id}`,
-    stats: endpointStats(e.id),
-  };
+  return { ...e, gatedUrl: `${config.publicBaseUrl}/g/${e.id}`, stats: endpointStats(e.id) };
 }
 
-// ── List / create endpoints. ──
-apiRouter.get('/endpoints', (_req, res) => {
-  res.json(store.listEndpoints().map(withStats));
+// Everything below requires a signed-in wallet (the seller).
+apiRouter.use(requireAuth);
+
+// ── List / create the seller's endpoints. ──
+apiRouter.get('/endpoints', (req, res) => {
+  res.json(store.listEndpoints(ownerOf(req)).map(withStats));
 });
 
 const CreateSchema = z.object({
@@ -65,7 +64,6 @@ const CreateSchema = z.object({
     .url()
     .refine((u) => /^https?:\/\//i.test(u), 'Must be an http(s) URL'),
   method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'ANY']).default('ANY'),
-  // Floor at 1 atomic USDC unit ($0.000001) so a price never quotes/charges $0.
   priceUsd: z.coerce.number().min(0.000001).max(1000),
   description: z.string().trim().max(280).optional().default(''),
 });
@@ -78,6 +76,7 @@ apiRouter.post('/endpoints', (req, res) => {
   }
   const endpoint: GatedEndpoint = {
     id: nanoid(8),
+    ownerAddress: ownerOf(req),
     createdAt: Date.now(),
     active: true,
     ...parsed.data,
@@ -86,8 +85,28 @@ apiRouter.post('/endpoints', (req, res) => {
   res.status(201).json(withStats(endpoint));
 });
 
+// Seed the seller's account with the example endpoints.
+apiRouter.post('/examples', (req, res) => {
+  const owner = ownerOf(req);
+  const existing = new Set(store.listEndpoints(owner).map((e) => e.name));
+  let added = 0;
+  for (const ex of EXAMPLES) {
+    if (existing.has(ex.name)) continue;
+    store.addEndpoint({ id: nanoid(8), ownerAddress: owner, createdAt: Date.now() - added * 1000, active: true, ...ex });
+    added++;
+  }
+  res.json({ added, endpoints: store.listEndpoints(owner).map(withStats) });
+});
+
+// Resolve an endpoint and enforce ownership.
+function ownedEndpoint(req: { params: { id: string } } & object, owner: string) {
+  const e = store.getEndpoint((req.params as { id: string }).id);
+  if (!e || e.ownerAddress !== owner) return null;
+  return e;
+}
+
 apiRouter.get('/endpoints/:id', (req, res) => {
-  const e = store.getEndpoint(req.params.id);
+  const e = ownedEndpoint(req, ownerOf(req));
   if (!e) {
     res.status(404).json({ error: 'Not found' });
     return;
@@ -104,45 +123,44 @@ const PatchSchema = z.object({
 });
 
 apiRouter.patch('/endpoints/:id', (req, res) => {
+  if (!ownedEndpoint(req, ownerOf(req))) {
+    res.status(404).json({ error: 'Not found' });
+    return;
+  }
   const parsed = PatchSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Invalid patch', issues: parsed.error.flatten() });
     return;
   }
-  const updated = store.updateEndpoint(req.params.id, parsed.data);
-  if (!updated) {
-    res.status(404).json({ error: 'Not found' });
-    return;
-  }
+  const updated = store.updateEndpoint(req.params.id, parsed.data)!;
   res.json(withStats(updated));
 });
 
 apiRouter.delete('/endpoints/:id', (req, res) => {
-  const deleted = store.deleteEndpoint(req.params.id);
-  if (!deleted) {
+  if (!ownedEndpoint(req, ownerOf(req))) {
     res.status(404).json({ deleted: false, error: 'Not found' });
     return;
   }
-  res.json({ deleted: true });
+  res.json({ deleted: store.deleteEndpoint(req.params.id) });
 });
 
-// ── Calls feed + platform stats. ──
+// ── The seller's call feed + earnings. ──
 apiRouter.get('/calls', (req, res) => {
   const limit = Math.min(parseInt(String(req.query.limit ?? '50'), 10) || 50, 200);
-  const endpointId = req.query.endpointId ? String(req.query.endpointId) : undefined;
-  res.json(store.listCalls(limit, endpointId));
+  res.json(store.callsForOwner(ownerOf(req), limit));
 });
 
-apiRouter.get('/stats', (_req, res) => {
-  const calls = store.allCalls();
+apiRouter.get('/stats', (req, res) => {
+  const owner = ownerOf(req);
+  const calls = store.callsForOwner(owner);
   const paid = calls.filter((c) => c.paid);
   res.json({
-    endpoints: store.listEndpoints().length,
+    endpoints: store.listEndpoints(owner).length,
     totalRequests: calls.length,
     paidCalls: paid.length,
     grossUsd: round6(paid.reduce((s, c) => s + c.amountUsd, 0)),
-    platformRevenueUsd: round6(paid.reduce((s, c) => s + c.platformFeeUsd, 0)),
-    sellerPayoutUsd: round6(paid.reduce((s, c) => s + c.sellerEarningsUsd, 0)),
+    earningsUsd: round6(paid.reduce((s, c) => s + c.sellerEarningsUsd, 0)),
+    feeUsd: round6(paid.reduce((s, c) => s + c.platformFeeUsd, 0)),
   });
 });
 
@@ -155,25 +173,18 @@ interface Step {
   data?: unknown;
 }
 
-const SimulateSchema = z.object({
-  method: z.string().optional(),
-  body: z.union([z.string(), z.record(z.any())]).optional(),
-});
-
 apiRouter.post('/endpoints/:id/simulate', async (req, res) => {
-  const endpoint = store.getEndpoint(req.params.id);
+  const endpoint = ownedEndpoint(req, ownerOf(req));
   if (!endpoint || !endpoint.active) {
     res.status(404).json({ error: 'No active gated endpoint with that id.' });
     return;
   }
-  const opts = SimulateSchema.safeParse(req.body ?? {}).data ?? {};
-  const method = (opts.method || (endpoint.method === 'ANY' ? 'GET' : endpoint.method)).toUpperCase();
+  const method = endpoint.method === 'ANY' ? 'GET' : endpoint.method;
   const gatedUrl = `http://127.0.0.1:${config.port}/g/${endpoint.id}`;
   const steps: Step[] = [];
   const t0 = Date.now();
 
   try {
-    // 1. Agent makes an unpaid request.
     steps.push({
       n: 1,
       title: 'Agent calls the gated URL',
@@ -182,20 +193,7 @@ apiRouter.post('/endpoints/:id/simulate', async (req, res) => {
       data: { method, url: `${config.publicBaseUrl}/g/${endpoint.id}` },
     });
 
-    const probeBody =
-      method !== 'GET' && method !== 'HEAD' && opts.body !== undefined
-        ? typeof opts.body === 'string'
-          ? opts.body
-          : JSON.stringify(opts.body)
-        : undefined;
-    const probeHeaders: Record<string, string> = {};
-    if (probeBody) probeHeaders['content-type'] = 'application/json';
-
-    const probe = await fetch(gatedUrl, {
-      method,
-      headers: { ...probeHeaders, 'x-gatekeep-internal': 'probe' },
-      body: probeBody,
-    });
+    const probe = await fetch(gatedUrl, { method, headers: { 'x-gatekeep-internal': 'probe' } });
     const quote = await probe.json();
     if (probe.status !== 402) {
       res.status(500).json({ error: `Expected 402, got ${probe.status}`, steps, quote });
@@ -210,7 +208,6 @@ apiRouter.post('/endpoints/:id/simulate', async (req, res) => {
       data: requirements,
     });
 
-    // 2. Agent signs an EIP-3009 USDC authorization.
     const payload = await signPayment(config.agentPrivateKey, requirements);
     const inner = payload.payload as { signature: string; authorization: Record<string, string> };
     steps.push({
@@ -219,15 +216,11 @@ apiRouter.post('/endpoints/:id/simulate', async (req, res) => {
       kind: 'sign',
       detail: `EIP-712 transferWithAuthorization signed by ${shorten(agentAddress)} — gasless, offline.`,
       data: {
-        authorization: {
-          ...inner.authorization,
-          value: `${inner.authorization.value} (atomic)`,
-        },
+        authorization: { ...inner.authorization, value: `${inner.authorization.value} (atomic)` },
         signature: `${inner.signature.slice(0, 22)}…${inner.signature.slice(-8)}`,
       },
     });
 
-    // 3. Agent retries with the X-PAYMENT header.
     const header = encodePaymentHeader(payload);
     steps.push({
       n: 4,
@@ -237,19 +230,13 @@ apiRouter.post('/endpoints/:id/simulate', async (req, res) => {
       data: { 'X-PAYMENT': `${header.slice(0, 40)}…` },
     });
 
-    const paid = await fetch(gatedUrl, {
-      method,
-      headers: { ...probeHeaders, 'X-PAYMENT': header },
-      body: probeBody,
-    });
+    const paid = await fetch(gatedUrl, { method, headers: { 'X-PAYMENT': header } });
     const paymentResponseHeader = paid.headers.get('X-PAYMENT-RESPONSE');
     const settlement = paymentResponseHeader
       ? JSON.parse(Buffer.from(paymentResponseHeader, 'base64').toString('utf8'))
       : null;
-
     if (paid.status === 402) {
-      const err = await paid.json();
-      res.status(402).json({ error: 'Payment rejected', detail: err, steps });
+      res.status(402).json({ error: 'Payment rejected', detail: await paid.json(), steps });
       return;
     }
 
@@ -263,7 +250,6 @@ apiRouter.post('/endpoints/:id/simulate', async (req, res) => {
       data: settlement,
     });
 
-    // 4. Resource delivered.
     const contentType = paid.headers.get('content-type') ?? '';
     const raw = await paid.text();
     steps.push({
@@ -274,17 +260,16 @@ apiRouter.post('/endpoints/:id/simulate', async (req, res) => {
       data: { status: paid.status, contentType, bodyPreview: previewBody(raw, contentType) },
     });
 
-    // 5. Revenue split.
     const { platformFeeUsd, sellerEarningsUsd } = splitRevenue(endpoint.priceUsd);
     steps.push({
       n: 7,
       title: 'Revenue split',
       kind: 'split',
-      detail: `You earn $${platformFeeUsd} of the $${endpoint.priceUsd} charge.`,
+      detail: `You earn $${sellerEarningsUsd} of the $${endpoint.priceUsd} charge.`,
       data: {
         grossUsd: endpoint.priceUsd,
-        platformFeeUsd,
         sellerEarningsUsd,
+        platformFeeUsd,
         payer: settlement?.payer ?? agentAddress,
         txHash: settlement?.transaction,
       },
@@ -298,21 +283,16 @@ apiRouter.post('/endpoints/:id/simulate', async (req, res) => {
       steps,
     });
   } catch (err) {
-    res.status(500).json({
-      error: 'Simulation failed',
-      detail: err instanceof Error ? err.message : String(err),
-      steps,
-    });
+    res.status(500).json({ error: 'Simulation failed', detail: err instanceof Error ? err.message : String(err), steps });
   }
 });
 
-// ── small formatting helpers ──
+// ── formatting helpers ──
 function shorten(addr: string): string {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 function fmtAtomic(req: { maxAmountRequired: string; extra?: { name?: string } }): string {
-  const usdc = Number(req.maxAmountRequired) / 1e6;
-  return `$${usdc} ${req.extra?.name ?? 'USDC'}`;
+  return `$${Number(req.maxAmountRequired) / 1e6} ${req.extra?.name ?? 'USDC'}`;
 }
 function previewBody(raw: string, contentType: string): string {
   let text = raw;
@@ -325,5 +305,3 @@ function previewBody(raw: string, contentType: string): string {
   }
   return text.length > 1400 ? `${text.slice(0, 1400)}\n… (truncated)` : text;
 }
-
-export type { CallRecord };

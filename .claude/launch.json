@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["start"],
       "port": 4021
+    },
+    {
+      "name": "gatekeep-preview",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["cross-env", "PORT=4090", "tsx", "src/server.ts"],
+      "port": 4090
     }
   ]
 }

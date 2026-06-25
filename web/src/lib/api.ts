@@ -2,6 +2,7 @@ export interface AppConfig {
   mode: 'mock' | 'chain';
   live: boolean;
   network: string;
+  chainId: number;
   publicBaseUrl: string;
   platformWallet: string;
   platformFeeBps: number;
@@ -14,13 +15,14 @@ export interface EndpointStats {
   totalRequests: number;
   paidCalls: number;
   grossUsd: number;
-  sellerEarningsUsd: number;
-  platformFeeUsd: number;
+  earningsUsd: number;
+  feeUsd: number;
   lastCallTs?: number;
 }
 
 export interface Endpoint {
   id: string;
+  ownerAddress: string;
   name: string;
   upstreamUrl: string;
   method: string;
@@ -32,18 +34,19 @@ export interface Endpoint {
   stats: EndpointStats;
 }
 
-export interface PlatformStats {
+export interface SellerStats {
   endpoints: number;
   totalRequests: number;
   paidCalls: number;
   grossUsd: number;
-  platformRevenueUsd: number;
-  sellerPayoutUsd: number;
+  earningsUsd: number;
+  feeUsd: number;
 }
 
 export interface CallRecord {
   id: string;
   endpointId: string;
+  ownerAddress: string;
   endpointName: string;
   ts: number;
   method: string;
@@ -59,15 +62,7 @@ export interface CallRecord {
   durationMs: number;
 }
 
-export type StepKind =
-  | 'request'
-  | 'quote'
-  | 'sign'
-  | 'pay'
-  | 'settle'
-  | 'deliver'
-  | 'split';
-
+export type StepKind = 'request' | 'quote' | 'sign' | 'pay' | 'settle' | 'deliver' | 'split';
 export interface SimStep {
   n: number;
   title: string;
@@ -75,7 +70,6 @@ export interface SimStep {
   detail: string;
   data?: unknown;
 }
-
 export interface SimResult {
   ok: boolean;
   mode: string;
@@ -94,53 +88,56 @@ export interface NewEndpoint {
   description?: string;
 }
 
-async function json<T>(res: Response): Promise<T> {
+async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, { credentials: 'include', ...init });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error((body as { error?: string }).error || `${res.status} ${res.statusText}`);
+    const err = new Error((body as { error?: string }).error || `${res.status} ${res.statusText}`);
+    (err as Error & { status?: number }).status = res.status;
+    throw err;
   }
   return res.json() as Promise<T>;
 }
+const jsonInit = (method: string, body: unknown): RequestInit => ({
+  method,
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify(body),
+});
 
 export const api = {
-  config: () => fetch('/api/config').then(json<AppConfig>),
-  endpoints: () => fetch('/api/endpoints').then(json<Endpoint[]>),
-  stats: () => fetch('/api/stats').then(json<PlatformStats>),
-  calls: (limit = 30) => fetch(`/api/calls?limit=${limit}`).then(json<CallRecord[]>),
-  create: (body: NewEndpoint) =>
-    fetch('/api/endpoints', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    }).then(json<Endpoint>),
+  // auth (SIWE)
+  config: () => req<AppConfig>('/api/config'),
+  me: () => req<{ address: string | null }>('/api/auth/me'),
+  nonce: (address: string) => req<{ message: string }>('/api/auth/nonce', jsonInit('POST', { address })),
+  verify: (message: string, signature: string) =>
+    req<{ address: string }>('/api/auth/verify', jsonInit('POST', { message, signature })),
+  logout: () => req<{ ok: boolean }>('/api/auth/logout', { method: 'POST' }),
+
+  // seller resources
+  endpoints: () => req<Endpoint[]>('/api/endpoints'),
+  stats: () => req<SellerStats>('/api/stats'),
+  calls: (limit = 30) => req<CallRecord[]>(`/api/calls?limit=${limit}`),
+  loadExamples: () => req<{ added: number; endpoints: Endpoint[] }>('/api/examples', jsonInit('POST', {})),
+  create: (body: NewEndpoint) => req<Endpoint>('/api/endpoints', jsonInit('POST', body)),
   patch: (id: string, body: Partial<Pick<Endpoint, 'active' | 'priceUsd' | 'name' | 'description'>>) =>
-    fetch(`/api/endpoints/${id}`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    }).then(json<Endpoint>),
-  remove: (id: string) =>
-    fetch(`/api/endpoints/${id}`, { method: 'DELETE' }).then(json<{ deleted: boolean }>),
+    req<Endpoint>(`/api/endpoints/${id}`, jsonInit('PATCH', body)),
+  remove: (id: string) => req<{ deleted: boolean }>(`/api/endpoints/${id}`, { method: 'DELETE' }),
   simulate: (id: string) =>
-    fetch(`/api/endpoints/${id}/simulate`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: '{}',
-    }).then(async (res) => (await res.json()) as SimResult),
+    fetch(`/api/endpoints/${id}/simulate`, { credentials: 'include', ...jsonInit('POST', {}) }).then(
+      (r) => r.json() as Promise<SimResult>,
+    ),
 };
 
-// ── small formatting helpers shared across components ──
+// ── formatting helpers ──
 export function usd(n: number): string {
   if (n === 0) return '$0';
   if (n < 0.01) return `$${n.toFixed(4)}`;
   if (n < 1) return `$${n.toFixed(3)}`;
   return `$${n.toFixed(2)}`;
 }
-
-export function shortAddr(a?: string): string {
+export function shortAddr(a?: string | null): string {
   return a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '—';
 }
-
 export function timeAgo(ts?: number): string {
   if (!ts) return '—';
   const s = Math.floor((Date.now() - ts) / 1000);

@@ -1,10 +1,8 @@
 import { pathToFileURL } from 'node:url';
-import { nanoid } from 'nanoid';
-import { store } from './store.js';
 import type { GatedEndpoint } from './types.js';
 
-/** A few free, key-less public APIs so the dashboard isn't empty on first run. */
-const EXAMPLES: Omit<GatedEndpoint, 'id' | 'createdAt' | 'active'>[] = [
+/** A few free, key-less public APIs offered as one-click examples in the dashboard. */
+export const EXAMPLES: Omit<GatedEndpoint, 'id' | 'ownerAddress' | 'createdAt' | 'active'>[] = [
   {
     name: 'GitHub Zen',
     upstreamUrl: 'https://api.github.com/zen',
@@ -35,28 +33,10 @@ const EXAMPLES: Omit<GatedEndpoint, 'id' | 'createdAt' | 'active'>[] = [
   },
 ];
 
-export function seedExamples(force = false): number {
-  const existing = new Set(store.listEndpoints().map((e) => e.name));
-  let added = 0;
-  for (const ex of EXAMPLES) {
-    if (!force && existing.has(ex.name)) continue;
-    store.addEndpoint({ id: nanoid(8), createdAt: Date.now() - added * 1000, active: true, ...ex });
-    added++;
-  }
-  return added;
-}
-
-export function seedIfEmpty(): void {
-  if (store.listEndpoints().length === 0) {
-    const n = seedExamples(false);
-    if (n) console.log(`[seed] added ${n} example gated endpoints`);
-  }
-}
-
-// `npm run seed` → force-add any missing examples.
-const invokedDirectly =
-  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+// Examples are now created per-seller via the dashboard ("Load examples") or the
+// POST /api/examples endpoint — there is no global seed.
+const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (invokedDirectly) {
-  const n = seedExamples(true);
-  console.log(`[seed] added ${n} example endpoints`);
+  console.log('Examples are created per account. Sign in and click "Load examples" in the dashboard,');
+  console.log('or POST /api/examples while authenticated.');
 }

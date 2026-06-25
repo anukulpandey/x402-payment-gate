@@ -66,8 +66,9 @@ for (const sig of ['SIGINT', 'SIGTERM'] as const) {
 process.once('beforeExit', flush);
 
 export const store = {
-  listEndpoints(): GatedEndpoint[] {
-    return [...db.endpoints].sort((a, b) => b.createdAt - a.createdAt);
+  listEndpoints(owner?: string): GatedEndpoint[] {
+    const list = owner ? db.endpoints.filter((e) => e.ownerAddress === owner) : db.endpoints;
+    return [...list].sort((a, b) => b.createdAt - a.createdAt);
   },
   getEndpoint(id: string): GatedEndpoint | undefined {
     return db.endpoints.find((e) => e.id === id);
@@ -104,6 +105,10 @@ export const store = {
   },
   callsForEndpoint(endpointId: string): CallRecord[] {
     return db.calls.filter((c) => c.endpointId === endpointId);
+  },
+  callsForOwner(owner: string, limit?: number): CallRecord[] {
+    const list = db.calls.filter((c) => c.ownerAddress === owner);
+    return limit ? list.slice(0, limit) : list;
   },
   allCalls(): CallRecord[] {
     return db.calls;

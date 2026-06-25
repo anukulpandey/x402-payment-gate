@@ -62,7 +62,7 @@ function recordCall(partial: Omit<CallRecord, 'id'>): void {
 function require402(
   res: Response,
   requirements: PaymentRequirements,
-  base: Pick<CallRecord, 'endpointId' | 'endpointName' | 'ts' | 'method' | 'path' | 'network'>,
+  base: Pick<CallRecord, 'endpointId' | 'ownerAddress' | 'endpointName' | 'ts' | 'method' | 'path' | 'network'>,
   error: string,
   payer: string | undefined,
   record: boolean,
@@ -107,6 +107,7 @@ async function handleGateway(req: Request, res: Response): Promise<void> {
 
   const base = {
     endpointId: endpoint.id,
+    ownerAddress: endpoint.ownerAddress,
     endpointName: endpoint.name,
     ts: started,
     method: req.method,

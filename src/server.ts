@@ -1,21 +1,25 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import fs from 'node:fs';
 import path from 'node:path';
 import { config, isLive } from './config.js';
 import { apiRouter } from './routes/api.js';
+import { authRouter } from './routes/auth.js';
 import { gatewayRouter } from './routes/gateway.js';
 import { facilitatorRouter } from './routes/facilitator.js';
-import { seedIfEmpty } from './seed.js';
 import { addressForKey } from './x402/signer.js';
 
 const app = express();
 app.disable('x-powered-by');
 app.use(
   cors({
+    origin: true,
+    credentials: true,
     exposedHeaders: ['X-PAYMENT-RESPONSE', 'X-Gatekeep-Charged', 'X-Gatekeep-Tx'],
   }),
 );
+app.use(cookieParser());
 
 app.get('/health', (_req, res) => res.json({ ok: true, mode: config.mode }));
 
@@ -24,6 +28,7 @@ app.get('/health', (_req, res) => res.json({ ok: true, mode: config.mode }));
 app.use('/g', express.raw({ type: '*/*', limit: '5mb' }), gatewayRouter);
 
 // JSON control-plane APIs.
+app.use('/api/auth', express.json({ limit: '1mb' }), authRouter);
 app.use('/api', express.json({ limit: '1mb' }), apiRouter);
 app.use('/facilitator', express.json({ limit: '1mb' }), facilitatorRouter);
 
@@ -52,8 +57,6 @@ if (hasDist) {
     }),
   );
 }
-
-seedIfEmpty();
 
 app.listen(config.port, () => {
   const fee = config.platformFeeBps / 100;

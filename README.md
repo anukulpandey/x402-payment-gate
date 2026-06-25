@@ -29,19 +29,25 @@ You (the platform) earn a configurable cut of every single call — this is
 
 ---
 
+GateKeep is a full product: a marketing site (`/`, `/how-it-works`, `/docs`,
+`/about`, `/contact`), a **wallet-based login**, and a seller **dashboard** (`/app`).
+
 ## Quickstart
 
 ```bash
 npm install        # install deps (needs Node 18+)
-npm run dev        # API on :4021, dashboard on :5173
+npm run dev        # API on :4021, site on :5173
 ```
 
 Open **http://localhost:5173**, then:
 
-1. **Paste an endpoint** (e.g. `https://api.github.com/zen`), set a price, click **Create gate**.
-2. Copy your new gated URL (`http://localhost:4021/g/<id>`).
-3. Click **▶ Run agent** to watch an AI agent discover the 402, sign a USDC payment,
-   and unlock the response — live, step by step.
+1. **Connect your wallet** (MetaMask) and sign in — your wallet is your account and
+   your payout address. Signing is free and gasless (Sign-In with Ethereum).
+2. In the **dashboard** (`/app`), **paste an endpoint** (e.g. `https://api.github.com/zen`),
+   set a price, click **Create gate** — or hit **Load examples**.
+3. Copy your gated URL (`http://localhost:4021/g/<id>`).
+4. Click **▶ Run agent** to watch an AI agent discover the 402, sign a USDC payment,
+   and unlock the response — live, step by step. You earn 90% of every call.
 
 Or pay a gate from the terminal with the bundled agent:
 
@@ -119,24 +125,27 @@ scripts/
   deploy.ts            deploy MockUSDC + mint test USDC to the agent
   setup-fuji.ts        generate wallets + wire Avalanche Fuji (.env.fuji)
 src/
-  server.ts            Express app: gateway + API + facilitator + static dashboard
-  config.ts            env / mode / fee / wallet / chain config
-  store.ts             JSON-file persistence (endpoints + call ledger)
-  revenue.ts           platform-cut / seller-payout math
+  server.ts            Express app: gateway + API + auth + facilitator + SPA
+  config.ts            env / mode / fee / wallet / chain / jwt config
+  auth.ts              Sign-In with Ethereum: nonce, signature verify, JWT session
+  store.ts             JSON-file persistence (owner-scoped endpoints + ledger)
+  revenue.ts           seller-earnings / platform-fee math
   routes/
-    gateway.ts         the /g/:id dynamic x402 proxy — the core
-    api.ts             registry CRUD, stats, and the agent-playground simulator
+    gateway.ts         the /g/:id dynamic x402 proxy — the core (public)
+    auth.ts            /api/auth/* — nonce, verify, me, logout (SIWE)
+    api.ts             owner-scoped CRUD, stats, the agent-playground simulator
     facilitator.ts     GateKeep's own x402-compatible facilitator endpoints
-  net/
-    ssrf.ts            blocks gates pointed at private / metadata addresses
+  net/ssrf.ts          blocks gates pointed at private / metadata addresses
   x402/
     protocol.ts        build PaymentRequirements, encode/decode X-PAYMENT, EIP-712 domain
     signer.ts          agent-side: sign an EIP-3009 USDC authorization
     facilitator.ts     verify + settle — dispatches to mock or chain
     chain.ts           on-chain facilitator (viem): balance/nonce checks + settle tx
-  agent/
-    demo-agent.ts      standalone "AI agent" CLI that pays a gate
-web/                   Vite + React + Tailwind dashboard
+  agent/demo-agent.ts  standalone "AI agent" CLI that pays a gate
+web/                   Vite + React + Tailwind product site
+  src/lib/             wallet (MetaMask), auth (SIWE), typed API client
+  src/pages/           Landing, HowItWorks, About, Contact, Docs, Dashboard
+  src/components/      Navbar, Footer, WalletButton, design-system + dashboard UI
 ```
 
 **Dynamic pricing.** Unlike the stock `x402-express` middleware (which gates a static
@@ -194,16 +203,27 @@ console.log(await res.json());
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `ANY` | `/g/:id` | The gated proxy. 402 without payment, proxies upstream with it. |
-| `GET` | `/api/config` | Runtime config (mode, network, fee, platform wallet). |
-| `GET` | `/api/endpoints` | List gated endpoints + per-endpoint stats. |
-| `POST` | `/api/endpoints` | Create a gate `{ name, upstreamUrl, method, priceUsd }`. |
-| `PATCH` | `/api/endpoints/:id` | Update price / pause / rename. |
-| `DELETE` | `/api/endpoints/:id` | Remove a gate. |
-| `POST` | `/api/endpoints/:id/simulate` | Run the full pay round-trip, return a transcript. |
-| `GET` | `/api/stats` | Platform totals (your revenue, gross volume, payouts). |
-| `GET` | `/api/calls` | Recent call ledger. |
+| `ANY` | `/g/:id` | The gated proxy. 402 without payment, proxies upstream with it. **Public.** |
+| `GET` | `/api/config` | Public runtime config (mode, network, chain id, fee). |
+| `POST` | `/api/auth/nonce` | Get a Sign-In-with-Ethereum message to sign. |
+| `POST` | `/api/auth/verify` | Verify the signature → start a session (cookie). |
+| `GET` | `/api/auth/me` · `POST /logout` | Session identity / sign out. |
+| `GET` | `/api/endpoints` 🔒 | Your gated endpoints + per-endpoint stats. |
+| `POST` | `/api/endpoints` 🔒 | Create a gate `{ name, upstreamUrl, method, priceUsd }`. |
+| `PATCH` · `DELETE` | `/api/endpoints/:id` 🔒 | Update / remove a gate you own. |
+| `POST` | `/api/examples` 🔒 | Add the example endpoints to your account. |
+| `POST` | `/api/endpoints/:id/simulate` 🔒 | Run the full pay round-trip, return a transcript. |
+| `GET` | `/api/stats` · `/api/calls` 🔒 | Your earnings, volume, and call ledger. |
 | `POST` | `/facilitator/verify` · `/settle` | GateKeep's own x402 facilitator surface. |
+
+🔒 = requires a signed-in wallet (session cookie).
+
+### Wallet login (Sign-In with Ethereum)
+
+There are no passwords. The dashboard asks your wallet for a one-time message, you
+sign it (free, gasless), and the server verifies the signature and starts a session.
+Your wallet address **is** your account — and your USDC payout address. Each seller
+sees only their own gates, calls, and earnings.
 
 ---
 
@@ -215,7 +235,6 @@ console.log(await res.json());
 | `npm run build` | Build the dashboard to `web/dist` |
 | `npm start` | Production: serve API + built dashboard on `:4021` |
 | `npm run agent` | Standalone agent that pays a gate |
-| `npm run seed` | Re-add the example endpoints |
 | `npm run fuji:setup` | Generate wallets + wire **Avalanche Fuji** testnet (`.env.fuji`) |
 | `npm run fuji:deploy` | Deploy MockUSDC to Fuji + mint to the agent |
 | `npm run fuji:start` | Run GateKeep against Avalanche Fuji |

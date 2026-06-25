@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api, type Endpoint } from '../api';
+import { api, type Endpoint } from '../lib/api';
 import { Card, Copyable, Spinner, cx } from './ui';
 
 const METHODS = ['ANY', 'GET', 'POST', 'PUT', 'PATCH', 'DELETE'];

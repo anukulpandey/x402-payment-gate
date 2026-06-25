@@ -3,6 +3,8 @@ export type { PaymentRequirements, PaymentPayload } from 'x402/types';
 /** A REST endpoint the user has wrapped behind an x402 payment gate. */
 export interface GatedEndpoint {
   id: string;
+  /** Lowercased wallet address of the seller who owns this gate. */
+  ownerAddress: string;
   name: string;
   /** Upstream REST API that actually serves the response. */
   upstreamUrl: string;
@@ -19,6 +21,8 @@ export interface GatedEndpoint {
 export interface CallRecord {
   id: string;
   endpointId: string;
+  /** Owner of the gated endpoint (denormalized for per-seller stats). */
+  ownerAddress: string;
   endpointName: string;
   ts: number;
   method: string;

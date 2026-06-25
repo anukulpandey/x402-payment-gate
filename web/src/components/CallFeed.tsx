@@ -1,4 +1,4 @@
-import { usd, timeAgo, shortAddr, type CallRecord } from '../api';
+import { usd, timeAgo, shortAddr, type CallRecord } from '../lib/api';
 import { Card } from './ui';
 
 export function CallFeed({ calls }: { calls: CallRecord[] }) {
@@ -37,7 +37,7 @@ export function CallFeed({ calls }: { calls: CallRecord[] }) {
             </div>
             <div className="shrink-0 text-right">
               <div className={c.paid ? 'font-medium text-emerald-300' : 'text-slate-500'}>
-                {c.paid ? `+${usd(c.platformFeeUsd)}` : `${c.status}`}
+                {c.paid ? `+${usd(c.sellerEarningsUsd)}` : `${c.status}`}
               </div>
               <div className="text-[10px] text-slate-600">{timeAgo(c.ts)}</div>
             </div>

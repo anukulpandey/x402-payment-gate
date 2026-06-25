@@ -31,6 +31,8 @@ export const config = {
   network: env('X402_NETWORK', mode === 'chain' ? 'avalanche-fuji' : 'base-sepolia'),
   /** Platform's USDC receiving address (every agent payment lands here). */
   platformWallet: env('PLATFORM_WALLET', '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC'),
+  /** Secret for signing session JWTs. CHANGE IN PRODUCTION. */
+  jwtSecret: env('JWT_SECRET', 'gatekeep-dev-secret-change-in-production'),
   /** Platform take rate in basis points (1000 = 10%). */
   platformFeeBps: parseInt(env('PLATFORM_FEE_BPS', '1000'), 10),
   /** The paying demo agent. In chain mode this account must hold USDC. */

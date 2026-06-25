@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api, usd, timeAgo, type Endpoint } from '../api';
+import { api, usd, timeAgo, type Endpoint } from '../lib/api';
 import { Badge, Card, Copyable, cx } from './ui';
 
 export function EndpointCard({
@@ -65,8 +65,8 @@ export function EndpointCard({
 
       <div className="grid grid-cols-3 gap-2 rounded-xl border border-white/8 bg-black/20 p-2.5 text-center">
         <Stat label="Paid calls" value={String(s.paidCalls)} sub={`${s.totalRequests} reqs`} />
-        <Stat label="You earned" value={usd(s.platformFeeUsd)} sub="your cut" accent />
-        <Stat label="Seller owed" value={usd(s.sellerEarningsUsd)} sub={timeAgo(s.lastCallTs)} />
+        <Stat label="You earned" value={usd(s.earningsUsd)} sub="your 90%" accent />
+        <Stat label="GateKeep fee" value={usd(s.feeUsd)} sub={timeAgo(s.lastCallTs)} />
       </div>
 
       <div className="flex items-center gap-2">
@@ -104,22 +104,10 @@ export function EndpointCard({
   );
 }
 
-function Stat({
-  label,
-  value,
-  sub,
-  accent,
-}: {
-  label: string;
-  value: string;
-  sub: string;
-  accent?: boolean;
-}) {
+function Stat({ label, value, sub, accent }: { label: string; value: string; sub: string; accent?: boolean }) {
   return (
     <div>
-      <div className={cx('text-sm font-semibold', accent ? 'text-accent-300' : 'text-white')}>
-        {value}
-      </div>
+      <div className={cx('text-sm font-semibold', accent ? 'text-emerald-300' : 'text-white')}>{value}</div>
       <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
       <div className="text-[10px] text-slate-600">{sub}</div>
     </div>

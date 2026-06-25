@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, usd, shortAddr, type Endpoint, type SimResult, type SimStep, type StepKind } from '../api';
+import { api, usd, shortAddr, type Endpoint, type SimResult, type SimStep, type StepKind } from '../lib/api';
 import { Badge, Json, Spinner, cx } from './ui';
 
 const STEP_META: Record<StepKind, { icon: string; ring: string }> = {
@@ -203,8 +203,8 @@ function SplitSummary({ result }: { result: SimResult }) {
     <div className="mt-3 rounded-xl border border-accent-500/20 bg-accent-500/[0.06] p-4">
       <div className="mb-3 grid grid-cols-3 gap-2 text-center">
         <Money label="Agent paid" value={usd(split.grossUsd)} tone="white" />
-        <Money label="You earn" value={usd(split.platformFeeUsd)} tone="accent" />
-        <Money label="Seller gets" value={usd(split.sellerEarningsUsd)} tone="emerald" />
+        <Money label="You earn" value={usd(split.sellerEarningsUsd)} tone="emerald" />
+        <Money label="GateKeep fee" value={usd(split.platformFeeUsd)} tone="accent" />
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-2 text-[11px] text-slate-400">
         <span>
