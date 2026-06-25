@@ -44,7 +44,7 @@ export function PayoutsCard({
           </div>
           <div className="mt-1 flex items-baseline gap-3">
             <span className="text-3xl font-semibold text-emerald-300">{usd(available)}</span>
-            <span className="text-xs text-slate-500">USDC · earned {usd(withdrawn)} withdrawn so far</span>
+            <span className="text-xs text-slate-500">USDC · {usd(withdrawn)} withdrawn so far</span>
           </div>
           <p className="mt-1 text-xs text-slate-500">
             Pays out on-chain to <span className="font-mono text-slate-400">{shortAddr(address)}</span> — verifiable on Snowtrace.

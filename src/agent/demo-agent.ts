@@ -1,8 +1,8 @@
 /**
  * Standalone "AI agent" that pays for a gated URL and prints the round-trip.
  *
- *   npm run agent                       # auto-discovers the first gated endpoint
- *   npm run agent -- <gated-url>        # pay a specific gate
+ *   npm run agent -- <gated-url>        # pay a gate (copy the URL from the dashboard)
+ *   npm run fuji:agent -- <gated-url>   # pay on Avalanche Fuji (real on-chain USDC)
  *   npm run agent -- <gated-url> --lib  # use the official x402-fetch client
  *
  * The default path signs the EIP-3009 payment by hand so you can see every

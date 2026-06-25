@@ -46,11 +46,12 @@ Three wallets, set via env:
 | --- | --- | --- | --- |
 | **Facilitator** | `FACILITATOR_PRIVATE_KEY` | native gas (AVAX) | submits settlement txs, pays gas |
 | **Agent** | `AGENT_PRIVATE_KEY` | USDC | the demo payer (your real agents bring their own wallets) |
-| **Platform** | `PLATFORM_WALLET` | nothing | receives USDC (your revenue address) |
+| **Platform** | `PLATFORM_WALLET` + `PLATFORM_PRIVATE_KEY` | gross USDC + a little AVAX | receives gross, signs seller-payout (withdrawal) transfers |
 
-The facilitator is the only wallet that spends gas. Each settlement is one
-`transferWithAuthorization` call (~tens of thousands of gas — fractions of a cent
-of AVAX).
+Two wallets spend gas: the **facilitator** on each settlement (one
+`transferWithAuthorization`, ~fractions of a cent of AVAX), and the **platform
+wallet** on each seller **withdrawal** (a `transfer` of the seller's earned USDC to
+their wallet). Both need a small AVAX balance.
 
 ---
 
@@ -106,9 +107,13 @@ USDC_DECIMALS=6
 
 FACILITATOR_PRIVATE_KEY=0x<funded facilitator key>
 AGENT_PRIVATE_KEY=0x<agent key>
-PLATFORM_WALLET=0x<your revenue address>
+PLATFORM_WALLET=0x<your treasury address>
+PLATFORM_PRIVATE_KEY=0x<treasury key — signs seller withdrawals>
 PLATFORM_FEE_BPS=1000
 ```
+
+> `fuji:setup` generates and writes `PLATFORM_PRIVATE_KEY` for you; the platform
+> wallet must hold a little AVAX (for payout gas) before sellers can withdraw.
 
 ### 4. Deploy MockUSDC + mint to the agent
 
@@ -162,7 +167,8 @@ USDC_NAME=USD Coin
 USDC_VERSION=2
 USDC_DECIMALS=6
 FACILITATOR_PRIVATE_KEY=0x<facilitator, funded with AVAX for gas>
-PLATFORM_WALLET=0x<your USDC revenue address>
+PLATFORM_WALLET=0x<your USDC treasury address>
+PLATFORM_PRIVATE_KEY=0x<treasury key — signs seller withdrawals, needs AVAX>
 ```
 
 > **No deploy step** — you're using an existing token, so skip `fuji:deploy`. Just
@@ -189,25 +195,30 @@ npm run build && DOTENV_CONFIG_PATH=.env.fuji npm start
   flush-on-exit). For real scale, swap [`store.ts`](../src/store.ts) for Postgres —
   the interface is small and self-contained.
 
-## Operating the facilitator
+## Operating the facilitator + platform wallet
 
-- **Keep it funded.** Monitor the facilitator's AVAX balance; if it runs dry,
+- **Keep the facilitator funded.** Monitor its AVAX balance; if it runs dry,
   settlements fail and gated resources are withheld (agents get a 402, not a free
   response — safe, but you stop earning). Alert on low balance.
-- **Treat the key as a hot wallet.** It signs settlement txs continuously. Use a
-  dedicated key, load it from a secret manager (not committed env), and cap its
-  exposure — it only ever calls `transferWithAuthorization`.
-- **Gas is tiny but real.** Each settlement is one transfer. Budget AVAX
-  accordingly and consider batching or a paymaster at high volume.
+- **Keep the platform wallet funded too.** It holds the gross USDC and signs each
+  seller **withdrawal** (`transfer`). If its AVAX runs out — or
+  `PLATFORM_PRIVATE_KEY` is unset — withdrawals fail (`/api/withdraw` returns an
+  error) and sellers can't cash out. Alert on its AVAX balance as well.
+- **Treat both keys as hot wallets.** They sign continuously. Use dedicated keys
+  from a secret manager (not committed env); the facilitator only ever calls
+  `transferWithAuthorization`, the platform wallet only `transfer`.
+- **Gas is tiny but real.** Each settlement and each withdrawal is one transfer.
+  Budget AVAX accordingly; consider batching seller payouts at high volume.
 
 ## Going to mainnet — checklist
 
 - [ ] `USDC_ADDRESS` verified against Circle's official list
 - [ ] `CHAIN_ID=43114` and a reliable mainnet `RPC_URL` (consider a paid RPC for uptime)
 - [ ] Facilitator key in a secret manager, funded with AVAX, balance-alerted
-- [ ] `PLATFORM_WALLET` is an address you control (ideally a multisig)
+- [ ] Platform key (`PLATFORM_PRIVATE_KEY`) in a secret manager, funded with AVAX, balance-alerted — it signs seller withdrawals
+- [ ] `PLATFORM_WALLET` is an address you control (a multisig holding seller balances should be hardened)
 - [ ] `PUBLIC_BASE_URL` is your public HTTPS origin
-- [ ] Seller-payout process in place (the ledger tracks what's owed; payouts are out-of-band)
+- [ ] Withdrawals tested end-to-end (`/api/withdraw` → USDC lands in the seller's wallet)
 - [ ] Load-tested; store swapped to a real DB if needed
 
 ---

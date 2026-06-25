@@ -297,13 +297,20 @@ facilitator calls the same method on the same interface.
 Every settled call is split and recorded in the ledger
 ([`revenue.ts`](../src/revenue.ts), [`store.ts`](../src/store.ts)):
 
-- On-chain, the agent pays the full price to `payTo` (the platform wallet).
+- On-chain, the agent pays the full price to `payTo` (the platform wallet), which
+  accumulates the gross USDC from every settlement.
 - The ledger records `platformFee = price × feeRate` as **your** revenue and the
-  remainder as **owed to the seller** — which the platform settles out-of-band
-  (e.g. periodic payouts).
+  remainder as the **seller's earnings**.
+- The seller **withdraws** their accrued earnings on-chain, self-serve, from the
+  dashboard: `POST /api/withdraw` calls `payoutUsdc()` ([`x402/chain.ts`](../src/x402/chain.ts)),
+  which transfers their share from the platform wallet to their login wallet
+  (`available = earned − already withdrawn`). The platform keeps its 10% fee.
 
-This mirrors how Stripe takes its cut from the gross and remits the rest to the
-merchant. The take rate is set by `PLATFORM_FEE_BPS` (basis points; `1000` = 10%).
+This mirrors Stripe — the platform collects gross, holds it, and pays out the
+seller's share — except every leg is a verifiable on-chain transfer. Withdrawals
+require `chain` mode and a funded platform wallet (`PLATFORM_PRIVATE_KEY` + a little
+AVAX for gas); without them the dashboard shows earnings but the withdraw button is
+disabled. The take rate is set by `PLATFORM_FEE_BPS` (basis points; `1000` = 10%).
 
 ---
 
