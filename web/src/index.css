@@ -1,0 +1,72 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-accent-50: #eef2ff;
+  --color-accent-300: #a5b4fc;
+  --color-accent-400: #818cf8;
+  --color-accent-500: #6366f1;
+  --color-accent-600: #4f46e5;
+  --font-mono: 'SF Mono', 'JetBrains Mono', ui-monospace, 'Menlo', monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background-color: #07070c;
+  background-image:
+    radial-gradient(60rem 60rem at 85% -10%, rgba(99, 102, 241, 0.16), transparent 60%),
+    radial-gradient(48rem 48rem at -10% 0%, rgba(16, 185, 129, 0.08), transparent 55%);
+  background-attachment: fixed;
+  color: #e2e8f0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Thin, dark scrollbars to match the UI. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a2a3a transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #2a2a3a;
+  border-radius: 9999px;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.fade-up {
+  animation: fadeUp 0.35s ease both;
+}
+
+@keyframes pulseRing {
+  0% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 10px rgba(99, 102, 241, 0);
+  }
+}
+.pulse-ring {
+  animation: pulseRing 1.4s ease-out infinite;
+}

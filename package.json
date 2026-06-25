@@ -1,0 +1,52 @@
+{
+  "name": "gatekeep",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Stripe for AI agent API calls — wrap any REST API behind an x402 payment gate in one click.",
+  "scripts": {
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "tsx watch src/server.ts",
+    "dev:web": "vite",
+    "build": "vite build",
+    "start": "cross-env NODE_ENV=production tsx src/server.ts",
+    "start:chain": "cross-env DOTENV_CONFIG_PATH=.env.chain NODE_ENV=production tsx src/server.ts",
+    "dev:chain": "cross-env DOTENV_CONFIG_PATH=.env.chain concurrently -n api,web -c green,magenta \"tsx watch src/server.ts\" \"vite\"",
+    "agent": "tsx src/agent/demo-agent.ts",
+    "seed": "tsx src/seed.ts",
+    "chain:anvil": "anvil --host 0.0.0.0 --chain-id 43113",
+    "chain:deploy": "tsx scripts/deploy.ts",
+    "contracts:build": "solc --optimize --combined-json abi,bin contracts/MockUSDC.sol -o contracts/out --overwrite",
+    "fuji:setup": "tsx scripts/setup-fuji.ts",
+    "fuji:deploy": "cross-env DOTENV_CONFIG_PATH=.env.fuji tsx scripts/deploy.ts",
+    "fuji:start": "cross-env DOTENV_CONFIG_PATH=.env.fuji NODE_ENV=production tsx src/server.ts",
+    "fuji:agent": "cross-env DOTENV_CONFIG_PATH=.env.fuji tsx src/agent/demo-agent.ts"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "nanoid": "^5.0.9",
+    "viem": "^2.21.55",
+    "x402": "^1.2.0",
+    "x402-fetch": "^1.2.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.5",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwindcss": "^4.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7"
+  }
+}

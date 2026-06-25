@@ -1,0 +1,330 @@
+# GateKeep — Architecture & Concepts
+
+This document explains **what GateKeep is, what the x402 protocol is, and exactly
+how the whole system fits together** — from an AI agent's HTTP request down to a
+USDC transfer settling on a blockchain.
+
+If you just want to run it, see the [README](../README.md). If you want to deploy
+it on Avalanche, see [DEPLOY.md](./DEPLOY.md).
+
+---
+
+## 1. The problem
+
+APIs were built for humans with credit cards. You sign up, get an API key, put a
+card on file, and get billed monthly.
+
+**AI agents can't do any of that.** An autonomous agent that needs to call 50
+different APIs can't fill in 50 signup forms, can't hold 50 API keys, and
+certainly can't enter a credit card. What an agent *can* do is **pay, per request,
+programmatically** — if only the web had a way to ask it to.
+
+It does, sort of: HTTP has had status code **`402 Payment Required`** reserved
+since 1997. It was never given a standard meaning… until x402.
+
+---
+
+## 2. What is x402?
+
+**x402** is an open protocol (introduced by Coinbase) that finally gives
+`402 Payment Required` a concrete, machine-payable meaning. The idea:
+
+> When a client requests a paid resource without paying, the server replies
+> **`402`** with a machine-readable description of *how much* to pay and *where*.
+> The client pays by **signing a stablecoin (USDC) transfer**, attaches that
+> signature to a retry of the request, and the server fulfils it.
+
+Crucially, the payment is a **gasless, signature-based USDC transfer**
+([EIP-3009](https://eips.ethereum.org/EIPS/eip-3009) `transferWithAuthorization`):
+
+- The agent **signs** an authorization off-chain. It costs nothing and touches no
+  chain.
+- A **facilitator** submits that signature on-chain and **pays the gas**. The
+  agent never needs native gas tokens — only USDC.
+
+So an agent with a wallet holding USDC can pay any x402-enabled endpoint on Earth
+with **zero accounts, zero API keys, zero gas, and zero human involvement.**
+
+### The x402 wire protocol, concretely
+
+**Step 1 — unpaid request gets a 402:**
+
+```http
+GET /g/abc123 HTTP/1.1
+```
+```http
+HTTP/1.1 402 Payment Required
+Content-Type: application/json
+
+{
+  "x402Version": 1,
+  "error": "X-PAYMENT header is required",
+  "accepts": [{
+    "scheme": "exact",
+    "network": "avalanche-fuji",
+    "maxAmountRequired": "10000",            // 0.01 USDC (6 decimals)
+    "resource": "https://api.example.com/g/abc123",
+    "payTo": "0x3C44…93BC",                  // where the money goes
+    "asset": "0x5FbD…0aa3",                  // the USDC contract
+    "maxTimeoutSeconds": 120,
+    "extra": { "name": "USD Coin", "version": "2" }   // EIP-712 domain
+  }]
+}
+```
+
+**Step 2 — the agent signs an EIP-3009 authorization** over EIP-712 typed data:
+
+```js
+TransferWithAuthorization {
+  from:        agentAddress,
+  to:          payTo,
+  value:       10000,                 // atomic USDC
+  validAfter:  0,
+  validBefore: now + maxTimeoutSeconds,
+  nonce:       random 32 bytes
+}
+```
+
+…and base64-encodes the `{ signature, authorization }` into an **`X-PAYMENT`** header.
+
+**Step 3 — retry with payment → resource is delivered:**
+
+```http
+GET /g/abc123 HTTP/1.1
+X-PAYMENT: eyJ4NDAyVmVyc2lvbiI6MSwic2NoZW1lIjoiZXhhY3QiLCJ…
+
+HTTP/1.1 200 OK
+X-PAYMENT-RESPONSE: eyJzdWNjZXNzIjp0cnVlLCJ0cmFuc2FjdGlvbiI6IjB4…   // tx hash
+Content-Type: application/json
+
+{ "the": "actual upstream response" }
+```
+
+That's the whole protocol. GateKeep speaks it faithfully, so **any** standard
+x402 client (`x402-fetch`, `x402-axios`, Coinbase AgentKit, …) can pay a GateKeep
+URL with no special integration.
+
+---
+
+## 3. What GateKeep adds — "Stripe for AI agent API calls"
+
+x402 is a protocol. GateKeep is the **product** that lets anyone monetize an API
+with it in one click — and takes a cut, the way Stripe does for card payments.
+
+A developer pastes any REST endpoint and a price. GateKeep:
+
+1. Stores it and hands back a **gated URL** (`/g/:id`).
+2. Runs the **402 ↔ pay ↔ proxy** dance for every agent that hits that URL.
+3. **Settles** the USDC payment via its own facilitator.
+4. **Splits** every payment: a configurable platform fee to *you* (the GateKeep
+   operator), the rest owed to the seller. That fee is the business model.
+
+```
+   Agent pays  $0.010
+              ├─ $0.001  platform fee   →  you (the GateKeep operator)
+              └─ $0.009  seller earnings →  the API owner
+```
+
+---
+
+## 4. The payment flow, end to end
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant A as 🤖 AI Agent
+    participant G as GateKeep Gateway<br/>(/g/:id)
+    participant F as Facilitator<br/>(verify + settle)
+    participant C as ⛓️ Blockchain<br/>(USDC EIP-3009)
+    participant U as Upstream REST API
+
+    A->>G: GET /g/:id  (no payment)
+    G-->>A: 402 Payment Required + accepts[]
+    Note over A: sign EIP-3009<br/>transferWithAuthorization<br/>(off-chain, gasless)
+    A->>G: GET /g/:id + X-PAYMENT
+    G->>F: verify(payload, requirements)
+    F->>C: read balanceOf + authorizationState(nonce)
+    C-->>F: balance ok · nonce unused
+    F-->>G: valid ✓ (payer recovered from signature)
+    G->>U: proxy the original request
+    U-->>G: 200 + body
+    G->>F: settle(payload, requirements)
+    F->>C: transferWithAuthorization(...)  ⛽ facilitator pays gas
+    C-->>F: tx mined (USDC moves agent → payTo)
+    F-->>G: settled (txHash)
+    G-->>A: 200 + body + X-PAYMENT-RESPONSE
+    Note over G: ledger += platform cut / seller owed
+```
+
+Two rules make this safe and fair, both enforced in
+[`gateway.ts`](../src/routes/gateway.ts):
+
+- **Verify before serving, settle after.** The cheap off-chain checks (signature,
+  recipient, amount, expiry, balance, nonce) gate access. The on-chain settlement
+  happens once the upstream has produced a successful response.
+- **No money for nothing.** If the upstream returns a non-2xx, the agent is **not
+  charged**. If settlement fails, the resource is **withheld** and a fresh 402 is
+  returned. You can never be billed for a response you didn't get.
+
+---
+
+## 5. Component architecture
+
+```mermaid
+flowchart LR
+    subgraph client["AI Agent side"]
+        AG["🤖 Agent<br/>x402-fetch / signer.ts"]
+    end
+
+    subgraph gk["GateKeep (one Node process)"]
+        GW["Gateway<br/>/g/:id proxy"]
+        API["Control API<br/>+ React dashboard"]
+        FAC["Facilitator<br/>verify · settle"]
+        STORE[("JSON store<br/>endpoints + ledger")]
+        SSRF["SSRF guard"]
+    end
+
+    subgraph ext["External"]
+        USDC[("USDC<br/>EIP-3009 token")]
+        UP["Upstream REST API"]
+    end
+
+    AG -->|"402 / X-PAYMENT"| GW
+    GW --> SSRF
+    GW -->|"verify · settle"| FAC
+    FAC -->|"balanceOf · transferWithAuthorization"| USDC
+    GW -->|"proxy"| UP
+    GW --> STORE
+    API --> STORE
+    AG -.->|"create gate, view stats"| API
+```
+
+| Module | File | Responsibility |
+| --- | --- | --- |
+| **Gateway** | [`routes/gateway.ts`](../src/routes/gateway.ts) | The `/g/:id` proxy — the 402 dance, SSRF-guarded upstream proxy, charge-on-2xx, settlement gating |
+| **Protocol** | [`x402/protocol.ts`](../src/x402/protocol.ts) | Builds `PaymentRequirements`, encodes/decodes `X-PAYMENT`, resolves the asset + EIP-712 domain |
+| **Signer** | [`x402/signer.ts`](../src/x402/signer.ts) | Agent side — signs the EIP-3009 authorization |
+| **Facilitator** | [`x402/facilitator.ts`](../src/x402/facilitator.ts) · [`x402/chain.ts`](../src/x402/chain.ts) | `verify` + `settle`, dispatched to mock or on-chain |
+| **SSRF guard** | [`net/ssrf.ts`](../src/net/ssrf.ts) | Blocks gates pointed at loopback / link-local / private IPs |
+| **Control API** | [`routes/api.ts`](../src/routes/api.ts) | Registry CRUD, stats, the live agent-playground simulator |
+| **Store** | [`store.ts`](../src/store.ts) | Atomic JSON persistence of endpoints + the call ledger |
+| **Dashboard** | [`web/`](../web/) | React + Tailwind UI |
+
+---
+
+## 6. Settlement modes
+
+GateKeep has one switch — `X402_MODE` — that decides **how** a payment settles.
+Everything else (the protocol, signing, the wire format) is identical.
+
+```mermaid
+flowchart TB
+    P["Signed X-PAYMENT arrives"] --> M{X402_MODE}
+    M -->|mock| MK["Recover signer · check amount/expiry<br/>Simulate settlement (fake tx hash)<br/><b>offline, no chain, no funds</b>"]
+    M -->|chain| CH["Recover signer · read on-chain balance + nonce<br/>Submit transferWithAuthorization on-chain<br/><b>real USDC moves; facilitator pays gas</b>"]
+```
+
+| | `mock` (default) | `chain` |
+| --- | --- | --- |
+| EIP-712 signing | ✅ real | ✅ real |
+| Signature verification | ✅ real (recovers signer) | ✅ real |
+| On-chain settlement | ❌ simulated (deterministic hash) | ✅ real tx, real USDC transfer |
+| Replay protection | in-memory nonce set | the token's on-chain `authorizationState` |
+| Needs an RPC / funded wallet | ❌ no | ✅ yes |
+| Runs offline | ✅ yes | ❌ needs a chain |
+| Use it for | demos, dev, CI | Anvil locally, **Avalanche / Base in prod** |
+
+The key insight: **`chain` mode is RPC-agnostic.** Point it at a local Anvil node
+for the demo, or at Avalanche / Base for production — only the env changes.
+
+---
+
+## 7. Why a local Anvil chain — and how it maps to production
+
+To show *real* on-chain settlement without spending real money, the dev stack runs
+a local [Anvil](https://book.getfoundry.sh/anvil/) chain plus a faucet-mintable
+USDC ([`MockUSDC.sol`](../contracts/MockUSDC.sol)) that implements the **exact**
+EIP-3009 `transferWithAuthorization` mechanism real USDC uses.
+
+```mermaid
+flowchart LR
+    subgraph dock["docker compose up"]
+        direction TB
+        AN["anvil<br/>chain id 43113"]
+        DEP["deployer<br/>deploys MockUSDC<br/>mints to agent"]
+        GKC["gatekeep<br/>X402_MODE=chain"]
+        DEP -->|"deploy + mint"| AN
+        GKC -->|"verify · settle"| AN
+    end
+    BROWSER["🌐 localhost:4021"] --> GKC
+```
+
+Going to production is **only a config change** — the code path is identical:
+
+```mermaid
+flowchart LR
+    GK["GateKeep<br/>X402_MODE=chain"]
+    GK -->|"RPC_URL + CHAIN_ID + USDC_ADDRESS"| NET{{"Avalanche / Base RPC<br/>real USDC"}}
+```
+
+See [DEPLOY.md](./DEPLOY.md) for the Avalanche walk-through.
+
+---
+
+## 8. MockUSDC ≈ real USDC
+
+[`MockUSDC.sol`](../contracts/MockUSDC.sol) is a ~120-line ERC-20 whose only job is
+to be *protocol-identical* to Circle's USDC for the parts x402 touches:
+
+- Same EIP-712 domain shape (`name`, `version`, `chainId`, `verifyingContract`).
+- Same `TransferWithAuthorization` typehash and struct.
+- Same `transferWithAuthorization(...)` and `authorizationState(...)` interface.
+
+The only addition is an open `mint()` faucet so you can fund test agents freely.
+Swap its address for real USDC and **nothing in GateKeep changes** — the
+facilitator calls the same method on the same interface.
+
+---
+
+## 9. The revenue model
+
+Every settled call is split and recorded in the ledger
+([`revenue.ts`](../src/revenue.ts), [`store.ts`](../src/store.ts)):
+
+- On-chain, the agent pays the full price to `payTo` (the platform wallet).
+- The ledger records `platformFee = price × feeRate` as **your** revenue and the
+  remainder as **owed to the seller** — which the platform settles out-of-band
+  (e.g. periodic payouts).
+
+This mirrors how Stripe takes its cut from the gross and remits the rest to the
+merchant. The take rate is set by `PLATFORM_FEE_BPS` (basis points; `1000` = 10%).
+
+---
+
+## 10. Security notes
+
+- **SSRF.** Because operators register arbitrary upstream URLs, every proxied
+  request is checked against loopback / link-local (incl. `169.254.169.254` cloud
+  metadata) / private ranges, and redirects are not auto-followed
+  ([`net/ssrf.ts`](../src/net/ssrf.ts)).
+- **Replay.** EIP-3009 nonces are single-use — enforced on-chain by the token in
+  `chain` mode, and by an in-memory set in `mock` mode.
+- **No credential leakage.** `cookie`, `authorization`, and the `x-payment` header
+  are stripped before proxying to the (operator-supplied) upstream.
+- **Facilitator key.** In `chain` mode the facilitator wallet pays gas and submits
+  settlements — treat its key like a hot wallet (see [DEPLOY.md](./DEPLOY.md)).
+
+---
+
+## 11. Glossary
+
+| Term | Meaning |
+| --- | --- |
+| **x402** | The HTTP-402-based payment protocol agents use to pay per request. |
+| **Facilitator** | The service that verifies a signed payment and submits/settles it on-chain (GateKeep runs its own). |
+| **EIP-3009** | `transferWithAuthorization` — a signed, gasless token transfer. The "exact" x402 scheme. |
+| **EIP-712** | The typed-data signing standard the authorization is signed with. |
+| **`X-PAYMENT`** | Base64 request header carrying the signed payment payload. |
+| **`X-PAYMENT-RESPONSE`** | Base64 response header carrying the settlement result (tx hash). |
+| **`payTo`** | The address that receives the USDC (here, the platform wallet). |
+| **atomic units** | Token amount in its smallest unit. USDC has 6 decimals, so `$0.01` = `10000`. |

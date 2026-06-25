@@ -1,0 +1,13 @@
+node_modules/
+dist/
+data/
+*.log
+.DS_Store
+.vite/
+
+# Secrets — NEVER commit real keys. Templates (.env.example, .env.chain,
+# .env.fuji.example) are safe and tracked; these hold real/generated keys.
+.env
+.env.local
+.env.fuji
+.env.*.local
