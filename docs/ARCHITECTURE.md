@@ -166,6 +166,12 @@ Two rules make this safe and fair, both enforced in
   charged**. If settlement fails, the resource is **withheld** and a fresh 402 is
   returned. You can never be billed for a response you didn't get.
 
+The dashboard's **agent playground** runs this exact round-trip live and shows every
+step — the 402 quote, the signed authorization, the on-chain settlement, and the
+delivered response:
+
+[![Agent playground](images/playground.png)](images/playground.png)
+
 ---
 
 ## 5. Component architecture

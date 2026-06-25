@@ -3,15 +3,15 @@ import { usd } from '../lib/api';
 import { Card, cx } from './ui';
 
 export function StatsBar({ stats }: { stats: SellerStats | null }) {
+  // Kept lean: total earned (headline), paid calls, live gates. Withdrawable
+  // balance + payouts live in the card below.
   const tiles = [
-    { label: 'Your earnings', value: usd(stats?.earningsUsd ?? 0), hint: 'your 90% — withdraw below', accent: true },
-    { label: 'Gross volume', value: usd(stats?.grossUsd ?? 0), hint: 'total agents paid you' },
-    { label: 'Paid calls', value: String(stats?.paidCalls ?? 0), hint: 'settled requests' },
-    { label: 'GateKeep fee', value: usd(stats?.feeUsd ?? 0), hint: 'flat 10% cut' },
-    { label: 'Gated APIs', value: String(stats?.endpoints ?? 0), hint: 'endpoints live' },
+    { label: 'Total earned', value: usd(stats?.earningsUsd ?? 0), hint: 'your 90% of every call', accent: true },
+    { label: 'Paid calls', value: String(stats?.paidCalls ?? 0), hint: 'settled by agents' },
+    { label: 'Live gates', value: String(stats?.endpoints ?? 0), hint: 'gated endpoints' },
   ];
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+    <div className="grid grid-cols-3 gap-3">
       {tiles.map((t) => (
         <Card key={t.label} className={cx('p-4', t.accent && 'ring-1 ring-emerald-500/30')}>
           <div className="text-[11px] uppercase tracking-wide text-slate-400">{t.label}</div>

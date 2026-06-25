@@ -28,18 +28,15 @@ function log(...args: unknown[]) {
   console.log(...args);
 }
 
-async function resolveUrl(explicit?: string): Promise<string> {
+function resolveUrl(explicit?: string): string {
   if (explicit && explicit.startsWith('http')) return explicit;
-  const res = await fetch(`${config.publicBaseUrl}/api/endpoints`).catch(() => null);
-  if (!res || !res.ok) {
-    throw new Error(
-      `No gated URL given and couldn't reach ${config.publicBaseUrl}. Start the server (npm run dev) or pass a URL.`,
-    );
-  }
-  const endpoints = (await res.json()) as Array<{ gatedUrl: string; name: string }>;
-  if (!endpoints.length) throw new Error('No gated endpoints exist yet. Create one first.');
-  log(c.dim(`No URL given — using "${endpoints[0].name}".`));
-  return endpoints[0].gatedUrl;
+  const env = process.env.GATED_URL;
+  if (env && env.startsWith('http')) return env;
+  throw new Error(
+    'Pass a gated URL — copy it from your dashboard (the ⧉ button on any gate):\n' +
+      '   npm run fuji:agent -- http://localhost:4021/g/<id>\n' +
+      '   (or set GATED_URL=...)',
+  );
 }
 
 async function payByHand(url: string) {
@@ -107,7 +104,7 @@ async function payWithLib(url: string) {
 async function main() {
   const args = process.argv.slice(2);
   const useLib = args.includes('--lib');
-  const url = await resolveUrl(args.find((a) => a.startsWith('http')));
+  const url = resolveUrl(args.find((a) => a.startsWith('http')));
   if (useLib) await payWithLib(url);
   else await payByHand(url);
 }

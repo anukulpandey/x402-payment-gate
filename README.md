@@ -10,6 +10,24 @@ in the loop. GateKeep takes a cut of every call.
 
 ---
 
+## Demo
+
+An AI agent paying a gated API from the terminal — `402 → sign → 200`, settled on-chain:
+
+![Agent paying a gate from the CLI](docs/images/agent-demo.gif)
+
+| Landing | Seller dashboard |
+| --- | --- |
+| [![Landing](docs/images/landing.png)](docs/images/landing.png) | [![Dashboard](docs/images/dashboard.png)](docs/images/dashboard.png) |
+
+| Agent playground (live pay round-trip) | In-app docs |
+| --- | --- |
+| [![Playground](docs/images/playground.png)](docs/images/playground.png) | [![Docs](docs/images/docs.png)](docs/images/docs.png) |
+
+More: [how it works](docs/images/how-it-works.png) · [pricing](docs/images/pricing.png).
+
+---
+
 ## Why this exists
 
 AI agents are becoming the dominant consumers of APIs, but the web has no native way
@@ -48,14 +66,32 @@ Open **http://localhost:5173**, then:
 3. Copy your gated URL (`http://localhost:4021/g/<id>`).
 4. Click **▶ Run agent** to watch an AI agent discover the 402, sign a USDC payment,
    and unlock the response — live, step by step. You earn 90% of every call.
+5. Hit **Withdraw** to pay your earned USDC on-chain to your wallet — a real
+   transfer you can verify on Snowtrace.
 
-Or pay a gate from the terminal with the bundled agent:
+### Test the agent without the UI
+
+Copy a gated URL from the dashboard, then pay it from the terminal with the
+bundled agent (the GIF above). This is the easiest way to confirm an agent can
+pay your gate end-to-end:
 
 ```bash
-npm run agent                      # auto-pays the first gated endpoint
-npm run agent -- <gated-url>       # pay a specific gate
-npm run agent -- <gated-url> --lib # use the official x402-fetch client
+# mock mode (offline):
+npm run agent  -- http://localhost:4021/g/<id>
+
+# Avalanche Fuji (real on-chain USDC settlement):
+npm run fuji:agent -- http://localhost:4021/g/<id>
+
+# use the official x402-fetch client instead of the hand-rolled signer:
+npm run fuji:agent -- http://localhost:4021/g/<id> --lib
 ```
+
+You'll see the `402 → sign EIP-3009 → 200` round-trip, the settlement tx hash,
+and the upstream response. It uses the agent wallet from your env
+(`AGENT_PRIVATE_KEY`), which must hold USDC in chain mode.
+
+You can also just `curl` the gate to see the raw 402, or point **any** standard
+x402 client at the URL — see [Integrating as an agent developer](#integrating-as-an-agent-developer).
 
 > **Zero setup.** Out of the box GateKeep runs in **mock mode**: it signs *real*
 > EIP-712 / EIP-3009 payment authorizations and verifies the signatures
@@ -214,6 +250,7 @@ console.log(await res.json());
 | `POST` | `/api/examples` 🔒 | Add the example endpoints to your account. |
 | `POST` | `/api/endpoints/:id/simulate` 🔒 | Run the full pay round-trip, return a transcript. |
 | `GET` | `/api/stats` · `/api/calls` 🔒 | Your earnings, volume, and call ledger. |
+| `POST` | `/api/withdraw` 🔒 | Pay your earned USDC on-chain to your wallet. |
 | `POST` | `/facilitator/verify` · `/settle` | GateKeep's own x402 facilitator surface. |
 
 🔒 = requires a signed-in wallet (session cookie).

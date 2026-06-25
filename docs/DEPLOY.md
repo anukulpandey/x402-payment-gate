@@ -32,6 +32,10 @@ Then open the dashboard, click **Run agent**, and confirm the settlement tx on
 from the terminal. The sections below explain what each step does and the
 production (mainnet / real-USDC) variations.
 
+The dashboard, running against Fuji — earnings withdraw on-chain to your wallet:
+
+[![Dashboard on Fuji](images/dashboard.png)](images/dashboard.png)
+
 ---
 
 ## How chain mode works (recap)
