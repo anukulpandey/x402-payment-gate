@@ -6,12 +6,6 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["start"],
       "port": 4021
-    },
-    {
-      "name": "gatekeep-chain",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "start:chain"],
-      "port": 4021
     }
   ]
 }

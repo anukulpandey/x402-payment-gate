@@ -232,34 +232,34 @@ flowchart TB
 | Replay protection | in-memory nonce set | the token's on-chain `authorizationState` |
 | Needs an RPC / funded wallet | ❌ no | ✅ yes |
 | Runs offline | ✅ yes | ❌ needs a chain |
-| Use it for | demos, dev, CI | Anvil locally, **Avalanche / Base in prod** |
+| Use it for | demos, dev, CI | **Avalanche Fuji / mainnet / any EVM** |
 
-The key insight: **`chain` mode is RPC-agnostic.** Point it at a local Anvil node
-for the demo, or at Avalanche / Base for production — only the env changes.
+The key insight: **`chain` mode is RPC-agnostic.** Point it at Avalanche Fuji for
+a free testnet demo, or at Avalanche / Base mainnet for production — only the env
+changes.
 
 ---
 
-## 7. Why a local Anvil chain — and how it maps to production
+## 7. Running on a real chain (Avalanche Fuji)
 
-To show *real* on-chain settlement without spending real money, the dev stack runs
-a local [Anvil](https://book.getfoundry.sh/anvil/) chain plus a faucet-mintable
+To show *real* on-chain settlement without spending real money, GateKeep runs in
+`chain` mode against the **Avalanche Fuji** testnet, settling in a faucet-mintable
 USDC ([`MockUSDC.sol`](../contracts/MockUSDC.sol)) that implements the **exact**
 EIP-3009 `transferWithAuthorization` mechanism real USDC uses.
 
 ```mermaid
 flowchart LR
-    subgraph dock["docker compose up"]
-        direction TB
-        AN["anvil<br/>chain id 43113"]
-        DEP["deployer<br/>deploys MockUSDC<br/>mints to agent"]
-        GKC["gatekeep<br/>X402_MODE=chain"]
-        DEP -->|"deploy + mint"| AN
-        GKC -->|"verify · settle"| AN
+    subgraph local["your machine"]
+        GK["GateKeep<br/>X402_MODE=chain"]
+        DEP["fuji:deploy<br/>deploys MockUSDC<br/>mints to agent"]
     end
-    BROWSER["🌐 localhost:4021"] --> GKC
+    BROWSER["🌐 localhost:4021"] --> GK
+    DEP -->|"deploy + mint"| FUJI
+    GK -->|"verify · settle"| FUJI{{"Avalanche Fuji RPC<br/>chain id 43113"}}
 ```
 
-Going to production is **only a config change** — the code path is identical:
+Going to mainnet (or real Circle USDC) is **only a config change** — the code path
+is identical:
 
 ```mermaid
 flowchart LR
@@ -267,7 +267,7 @@ flowchart LR
     GK -->|"RPC_URL + CHAIN_ID + USDC_ADDRESS"| NET{{"Avalanche / Base RPC<br/>real USDC"}}
 ```
 
-See [DEPLOY.md](./DEPLOY.md) for the Avalanche walk-through.
+See [DEPLOY.md](./DEPLOY.md) for the Fuji + mainnet walk-through.
 
 ---
 

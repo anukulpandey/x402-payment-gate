@@ -7,11 +7,12 @@ pragma solidity ^0.8.19;
  *         `transferWithAuthorization` — the exact mechanism Circle's real USDC
  *         uses for gasless, signature-based transfers in the x402 protocol.
  *
- *         This lets GateKeep run the FULL real settlement flow against a local
- *         Anvil chain: an agent signs an EIP-712 authorization off-chain, and
- *         GateKeep's facilitator submits it on-chain here, paying the gas. The
- *         only difference from production is the token contract — swap this
- *         address for real USDC on Base/Avalanche and nothing else changes.
+ *         This lets GateKeep run the FULL real settlement flow on a testnet
+ *         (e.g. Avalanche Fuji) without spending real money: an agent signs an
+ *         EIP-712 authorization off-chain, and GateKeep's facilitator submits it
+ *         on-chain here, paying the gas. The only difference from production is
+ *         the token contract — swap this address for real USDC and nothing else
+ *         changes.
  */
 contract MockUSDC {
     string public name = "USD Coin";

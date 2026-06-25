@@ -87,7 +87,7 @@ app.listen(config.port, () => {
         console.log(`  facilitator:  ${facilitatorAddress()} (pays gas)`);
         const bal = await usdcBalanceOf(addressForKey(config.agentPrivateKey));
         console.log(`  agent USDC:   ${Number(bal) / 10 ** config.usdcDecimals}`);
-        if (bal === 0n) console.log('  ⚠️  agent has 0 USDC — run `npm run chain:deploy` first.');
+        if (bal === 0n) console.log('  ⚠️  agent has 0 USDC — run `npm run fuji:deploy` first.');
         console.log('');
       })
       .catch((err) => console.log(`  ⚠️  chain not reachable: ${err instanceof Error ? err.message : err}\n`));

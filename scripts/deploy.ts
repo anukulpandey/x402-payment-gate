@@ -1,9 +1,10 @@
 /**
  * Deploy the MockUSDC EIP-3009 token to the configured chain and mint test
- * USDC to the demo agent. Idempotent: if the token already exists at the
- * deterministic address it just tops the agent up.
+ * USDC to the demo agent. Re-running tops the agent up (it reuses an existing
+ * token when USDC_ADDRESS is set).
  *
- *   npm run chain:deploy
+ *   npm run fuji:deploy        # Avalanche Fuji
+ *   DOTENV_CONFIG_PATH=<file> tsx scripts/deploy.ts   # any EVM RPC
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -42,9 +43,8 @@ async function main() {
   log(`\n  Deploying to ${config.network} (chainId ${config.chainId}) via ${config.rpcUrl}`);
   log(`  deployer / facilitator: ${deployer.address}`);
 
-  // Only reuse a token if USDC_ADDRESS was EXPLICITLY provided. The default is
-  // Anvil's deterministic first-deploy address, which must never be assumed on a
-  // public network (something unrelated could live there).
+  // Only reuse a token if USDC_ADDRESS was EXPLICITLY provided — otherwise
+  // deploy a fresh one (never assume an address exists on a public network).
   const explicit =
     process.env.USDC_ADDRESS && /^0x[0-9a-fA-F]{40}$/.test(process.env.USDC_ADDRESS)
       ? (process.env.USDC_ADDRESS as `0x${string}`)

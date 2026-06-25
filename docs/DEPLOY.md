@@ -1,8 +1,9 @@
 # Deploying GateKeep to Avalanche
 
-GateKeep's `chain` settlement mode is **RPC-agnostic** — the same code that settles
-against a local Anvil node settles against Avalanche. Going live is a **config
-change, not a code change**: point it at an Avalanche RPC and a USDC token.
+GateKeep's `chain` settlement mode is **RPC-agnostic** — the same code settles
+against Avalanche Fuji, Avalanche mainnet, or any EVM chain with an EIP-3009 USDC.
+Going live is a **config change, not a code change**: point it at an RPC and a
+USDC token.
 
 This guide covers **Avalanche Fuji (testnet)** first — the recommended way to
 demo on a real public chain — then the changes for **Avalanche mainnet**.
@@ -69,23 +70,24 @@ of AVAX).
 
 The simplest way to run on a real public chain: deploy GateKeep's own
 faucet-mintable `MockUSDC` to Fuji and mint test USDC to your agent. No waiting on
-a USDC faucet, full control.
+a USDC faucet, full control. This is exactly what `npm run fuji:setup` automates —
+here's what it does, step by step.
 
-### 1. Create two wallets
+### 1. Create wallets
 
-Generate two keypairs (facilitator + agent). With Foundry:
-
-```bash
-cast wallet new      # run twice → one for FACILITATOR, one for AGENT
-```
+`npm run fuji:setup` generates a facilitator + agent + platform wallet and writes
+them to `.env.fuji` (gitignored). To bring your own instead, generate keypairs
+(`cast wallet new`) and fill them into `.env.fuji` by hand.
 
 ### 2. Fund the facilitator with test AVAX
 
-Send the **facilitator** address some Fuji AVAX from <https://faucet.avax.network>.
-It needs gas to deploy the token and settle payments. (The agent needs **no** AVAX —
-its payments are gasless.)
+`fuji:setup` prints the **facilitator** address — send it some Fuji AVAX from
+<https://faucet.avax.network>. It needs gas to deploy the token and settle
+payments. (The agent needs **no** AVAX — its payments are gasless.)
 
-### 3. Configure `.env.chain`
+### 3. Configure `.env.fuji`
+
+`fuji:setup` writes this for you; it looks like:
 
 ```bash
 X402_MODE=chain
@@ -93,13 +95,13 @@ X402_NETWORK=avalanche-fuji
 CHAIN_ID=43113
 RPC_URL=https://api.avax-test.network/ext/bc/C/rpc
 
-# Leave USDC_ADDRESS unset for now — the deploy step prints the deployed address.
+USDC_ADDRESS=                  # filled in automatically by fuji:deploy
 USDC_NAME=USD Coin
 USDC_VERSION=2
 USDC_DECIMALS=6
 
-FACILITATOR_PRIVATE_KEY=0x<your funded facilitator key>
-AGENT_PRIVATE_KEY=0x<your agent key>
+FACILITATOR_PRIVATE_KEY=0x<funded facilitator key>
+AGENT_PRIVATE_KEY=0x<agent key>
 PLATFORM_WALLET=0x<your revenue address>
 PLATFORM_FEE_BPS=1000
 ```
@@ -107,25 +109,23 @@ PLATFORM_FEE_BPS=1000
 ### 4. Deploy MockUSDC + mint to the agent
 
 ```bash
-DOTENV_CONFIG_PATH=.env.chain npm run chain:deploy
+npm run fuji:deploy
 ```
 
-It prints the deployed token address and mints 1,000 test USDC to the agent:
+It deploys the token, mints 1,000 test USDC to the agent, and **writes
+`USDC_ADDRESS` back into `.env.fuji`** automatically:
 
 ```
   MockUSDC deployed at 0x1234…abcd
   agent 0x…  →  1000 USDC
+  wrote USDC_ADDRESS=0x1234…abcd → .env.fuji
 ```
-
-Put that address in `.env.chain` as `USDC_ADDRESS=0x1234…abcd`.
-(On a public chain the deterministic-address shortcut doesn't apply, so set it
-explicitly.)
 
 ### 5. Run GateKeep
 
 ```bash
-npm run build                 # build the dashboard once
-DOTENV_CONFIG_PATH=.env.chain npm start
+npm run build          # build the dashboard once
+npm run fuji:start     # serve API + dashboard against Fuji on :4021
 ```
 
 Open <http://localhost:4021>, click **Run agent**, and watch a payment settle —
@@ -161,7 +161,7 @@ FACILITATOR_PRIVATE_KEY=0x<facilitator, funded with AVAX for gas>
 PLATFORM_WALLET=0x<your USDC revenue address>
 ```
 
-> **No deploy step** — you're using an existing token. Skip `chain:deploy`. Just
+> **No deploy step** — you're using an existing token, so skip `fuji:deploy`. Just
 > confirm `USDC_NAME` / `USDC_VERSION` match the token's EIP-712 domain (Circle
 > USDC is `"USD Coin"` / `"2"`); a mismatch makes every signature fail
 > verification.
@@ -169,7 +169,7 @@ PLATFORM_WALLET=0x<your USDC revenue address>
 ### 3. Run
 
 ```bash
-npm run build && DOTENV_CONFIG_PATH=.env.chain npm start
+npm run build && DOTENV_CONFIG_PATH=.env.fuji npm start
 ```
 
 ---
@@ -179,8 +179,8 @@ npm run build && DOTENV_CONFIG_PATH=.env.chain npm start
 - **Reverse proxy + TLS.** Put GateKeep behind nginx/Caddy with HTTPS and set
   `PUBLIC_BASE_URL=https://your-domain` so the `resource` field in 402s (and your
   gated URLs) are correct and reachable by agents.
-- **Process manager.** Run under systemd / pm2 / a container. The included
-  `Dockerfile` builds a production image (`npm start` serves API + dashboard).
+- **Process manager.** Run under systemd / pm2 / a container — `npm start` serves
+  the API + built dashboard on one port.
 - **Persistence.** The default store is a JSON file in `DATA_DIR` (atomic writes,
   flush-on-exit). For real scale, swap [`store.ts`](../src/store.ts) for Postgres —
   the interface is small and self-contained.

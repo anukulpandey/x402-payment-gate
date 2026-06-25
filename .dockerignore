@@ -1,9 +1,0 @@
-node_modules
-web/dist
-data
-.git
-.env
-*.log
-npm-debug.log*
-.DS_Store
-.vite

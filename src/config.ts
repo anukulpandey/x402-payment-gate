@@ -5,8 +5,8 @@ import 'dotenv/config';
  *  - "mock"  : offline. Real EIP-712 signing + real signature verification, but
  *              settlement is simulated (no chain). Zero setup.
  *  - "chain" : real on-chain settlement of an EIP-3009 USDC transfer via a
- *              GateKeep-run facilitator wallet. Works against ANY EVM RPC —
- *              local Anvil for the demo, or Avalanche / Base in production.
+ *              GateKeep-run facilitator. Works against any EVM RPC — Avalanche
+ *              Fuji out of the box (see `.env.fuji` / `npm run fuji:setup`).
  */
 export type SettlementMode = 'mock' | 'chain';
 
@@ -15,9 +15,9 @@ function env(key: string, fallback: string): string {
   return v === undefined || v === '' ? fallback : v;
 }
 
-// Well-known Anvil/Hardhat test accounts (PUBLIC keys — testnets only).
-const ANVIL_ACCOUNT_0 = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'; // 0xf39F…2266
-const ANVIL_ACCOUNT_1 = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d'; // 0x7099…79C8
+// A public, well-known test private key — used ONLY for offline mock-mode
+// signing. It never holds real funds. Chain mode supplies real keys via env.
+const DEMO_SIGNING_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
 
 const port = parseInt(env('PORT', '4021'), 10);
 const mode = env('X402_MODE', 'mock') as SettlementMode;
@@ -34,21 +34,21 @@ export const config = {
   /** Platform take rate in basis points (1000 = 10%). */
   platformFeeBps: parseInt(env('PLATFORM_FEE_BPS', '1000'), 10),
   /** The paying demo agent. In chain mode this account must hold USDC. */
-  agentPrivateKey: env('AGENT_PRIVATE_KEY', mode === 'chain' ? ANVIL_ACCOUNT_1 : ANVIL_ACCOUNT_0) as `0x${string}`,
+  agentPrivateKey: env('AGENT_PRIVATE_KEY', DEMO_SIGNING_KEY) as `0x${string}`,
   dataDir: env('DATA_DIR', 'data'),
 
   // ── chain-mode settings (ignored in mock mode) ──
-  /** EVM JSON-RPC endpoint. */
-  rpcUrl: env('RPC_URL', 'http://127.0.0.1:8545'),
-  /** Chain id used for the EIP-712 domain (must match the RPC's chain). */
+  /** EVM JSON-RPC endpoint. Defaults to Avalanche Fuji. */
+  rpcUrl: env('RPC_URL', 'https://api.avax-test.network/ext/bc/C/rpc'),
+  /** Chain id for the EIP-712 domain (must match the RPC's chain). Fuji = 43113. */
   chainId: parseInt(env('CHAIN_ID', '43113'), 10),
-  /** The EIP-3009 USDC token to settle in. Default = Anvil's deterministic first-deploy. */
-  usdcAddress: env('USDC_ADDRESS', '0x5FbDB2315678afecb367f032d93F642f64180aa3') as `0x${string}`,
+  /** EIP-3009 USDC token to settle in. Set by `npm run fuji:deploy`. */
+  usdcAddress: env('USDC_ADDRESS', '') as `0x${string}`,
   usdcName: env('USDC_NAME', 'USD Coin'),
   usdcVersion: env('USDC_VERSION', '2'),
   usdcDecimals: parseInt(env('USDC_DECIMALS', '6'), 10),
   /** Facilitator wallet — submits settlement txs and pays gas. */
-  facilitatorPrivateKey: env('FACILITATOR_PRIVATE_KEY', ANVIL_ACCOUNT_0) as `0x${string}`,
+  facilitatorPrivateKey: env('FACILITATOR_PRIVATE_KEY', DEMO_SIGNING_KEY) as `0x${string}`,
 };
 
 /** True when settlement actually hits a blockchain. */

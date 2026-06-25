@@ -56,34 +56,24 @@ npm run agent -- <gated-url> --lib # use the official x402-fetch client
 > cryptographically, but *simulates* on-chain settlement — so the entire flow works
 > offline with no wallet and no funds.
 
-### Run it with REAL on-chain settlement (Docker + Anvil)
+### Run it with REAL on-chain settlement (Avalanche Fuji)
 
-To watch real USDC actually move on a blockchain, bring up the full stack — a
-local [Anvil](https://book.getfoundry.sh/anvil/) chain, an EIP-3009 USDC token,
-and GateKeep in `chain` mode — with one command:
+To watch real USDC actually move on a blockchain, run GateKeep in `chain` mode
+against the **Avalanche Fuji** testnet. Three commands:
 
 ```bash
-docker compose up --build      # needs Docker running; uses host ports 4021 + 8545
+npm run fuji:setup     # generates wallets → .env.fuji, prints the facilitator
+                       # address + the faucet link
+# → fund that facilitator address with test AVAX: https://faucet.avax.network
+npm run fuji:deploy    # deploys MockUSDC to Fuji + mints USDC to the agent
+npm run fuji:start     # runs GateKeep against Fuji → http://localhost:4021
 ```
 
-This starts three services:
-
-1. **anvil** — a local EVM chain (chain id `43113`, mimicking Avalanche Fuji)
-2. **deployer** — deploys [`MockUSDC`](contracts/MockUSDC.sol) and mints test USDC to the agent
-3. **gatekeep** — the app, settling each call on-chain via its own facilitator
-
-Open **http://localhost:4021**, click **Run agent**, and every payment is a real
+Open the dashboard, click **Run agent**, and every payment is a real
 `transferWithAuthorization` transaction — the agent's USDC balance drops, the
-platform's rises, and you get a real tx hash. Anvil's RPC is on `:8545`:
-
-```bash
-cast call 0x5FbDB2315678afecb367f032d93F642f64180aa3 \
-  "balanceOf(address)(uint256)" 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 \
-  --rpc-url http://localhost:8545      # the agent's on-chain USDC balance
-```
-
-> Prefer to run it natively (Foundry installed)? `npm run chain:anvil` in one
-> terminal, then `DOTENV_CONFIG_PATH=.env.chain npm run chain:deploy && npm run dev:chain`.
+platform's rises, and you get a tx hash you can open on
+[Snowtrace testnet](https://testnet.snowtrace.io). Full guide (incl. real Circle
+USDC + mainnet): **[docs/DEPLOY.md](docs/DEPLOY.md)**.
 
 **📚 Docs:** [Architecture & how x402 works](docs/ARCHITECTURE.md) ·
 [Deploy to Avalanche](docs/DEPLOY.md)
@@ -127,6 +117,7 @@ contracts/
   MockUSDC.sol         minimal EIP-3009 USDC (real transferWithAuthorization)
 scripts/
   deploy.ts            deploy MockUSDC + mint test USDC to the agent
+  setup-fuji.ts        generate wallets + wire Avalanche Fuji (.env.fuji)
 src/
   server.ts            Express app: gateway + API + facilitator + static dashboard
   config.ts            env / mode / fee / wallet / chain config
@@ -146,7 +137,6 @@ src/
   agent/
     demo-agent.ts      standalone "AI agent" CLI that pays a gate
 web/                   Vite + React + Tailwind dashboard
-docker-compose.yml     anvil + deploy + app, for real on-chain settlement
 ```
 
 **Dynamic pricing.** Unlike the stock `x402-express` middleware (which gates a static
@@ -171,24 +161,14 @@ protocol, signing, the wire format — is identical.
 | Replay protection | in-memory nonce set | the token's on-chain `authorizationState` |
 | Needs an RPC / funded wallet | ❌ no | ✅ yes |
 | Runs offline | ✅ yes | ❌ needs a chain |
-| Use it for | demos, dev, CI | **Anvil locally, Avalanche / Base in prod** |
+| Use it for | demos, dev, CI | **Avalanche Fuji / Base / any EVM in prod** |
 
-`chain` mode is RPC-agnostic — the same code settles against a local Anvil node
-(`docker compose up`, above) or against Avalanche in production. Going live is a
-config change, not a code change.
-
-**Avalanche Fuji testnet, in 3 commands:**
-
-```bash
-npm run fuji:setup     # generates wallets, prints the facilitator address + faucet link
-# → fund that address with test AVAX at https://faucet.avax.network
-npm run fuji:deploy    # deploy MockUSDC to Fuji + mint USDC to the agent
-npm run fuji:start     # run GateKeep against Avalanche Fuji
-```
-
-Full walk-through (incl. real Circle USDC + mainnet): **[docs/DEPLOY.md](docs/DEPLOY.md)**.
-All the knobs are in [`.env.example`](.env.example) (mock), [`.env.chain`](.env.chain)
-(anvil), and [`.env.fuji.example`](.env.fuji.example) (Fuji).
+`chain` mode is RPC-agnostic — the same code settles against Avalanche Fuji,
+Avalanche mainnet, Base, or any EVM chain with an EIP-3009 USDC. Going live is a
+config change, not a code change — see the Fuji quickstart above and the full
+walk-through (incl. real Circle USDC + mainnet) in **[docs/DEPLOY.md](docs/DEPLOY.md)**.
+All the knobs are in [`.env.example`](.env.example) (mock) and
+[`.env.fuji.example`](.env.fuji.example) (chain / Fuji).
 
 ---
 
@@ -236,14 +216,11 @@ console.log(await res.json());
 | `npm start` | Production: serve API + built dashboard on `:4021` |
 | `npm run agent` | Standalone agent that pays a gate |
 | `npm run seed` | Re-add the example endpoints |
-| `docker compose up --build` | Full stack with **real on-chain settlement** (anvil + USDC + app) |
-| `npm run chain:anvil` | Run a local Anvil chain (native, chain id 43113) |
-| `npm run chain:deploy` | Deploy MockUSDC + mint test USDC to the agent |
-| `npm run dev:chain` | Dev server in `chain` mode (needs anvil + a deploy) |
-| `npm run contracts:build` | Recompile `MockUSDC.sol` → `contracts/out/` |
 | `npm run fuji:setup` | Generate wallets + wire **Avalanche Fuji** testnet (`.env.fuji`) |
 | `npm run fuji:deploy` | Deploy MockUSDC to Fuji + mint to the agent |
 | `npm run fuji:start` | Run GateKeep against Avalanche Fuji |
+| `npm run fuji:agent` | Pay a Fuji gate from the terminal |
+| `npm run contracts:build` | Recompile `MockUSDC.sol` → `contracts/out/` |
 
 ### Troubleshooting
 

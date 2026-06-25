@@ -5,8 +5,8 @@ data/
 .DS_Store
 .vite/
 
-# Secrets — NEVER commit real keys. Templates (.env.example, .env.chain,
-# .env.fuji.example) are safe and tracked; these hold real/generated keys.
+# Secrets — NEVER commit real keys. Templates (.env.example, .env.fuji.example)
+# are safe and tracked; the entries below hold real/generated keys.
 .env
 .env.local
 .env.fuji
