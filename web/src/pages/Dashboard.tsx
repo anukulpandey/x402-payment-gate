@@ -65,6 +65,7 @@ function DashboardContent({ address }: { address: string }) {
   const [loaded, setLoaded] = useState(false);
   const [loadingExamples, setLoadingExamples] = useState(false);
   const [network, setNetwork] = useState<string>('');
+  const [erc8004, setErc8004] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -79,7 +80,12 @@ function DashboardContent({ address }: { address: string }) {
   }, []);
 
   useEffect(() => {
-    api.config().then((c) => setNetwork(c.live ? `${c.network} · ${c.chainId}` : 'demo mode')).catch(() => undefined);
+    api.config()
+      .then((c) => {
+        setNetwork(c.live ? `${c.network} · ${c.chainId}` : 'demo mode');
+        setErc8004(!!c.erc8004);
+      })
+      .catch(() => undefined);
     refresh();
     const id = setInterval(refresh, 2500);
     return () => clearInterval(id);
@@ -124,7 +130,7 @@ function DashboardContent({ address }: { address: string }) {
 
       <PayoutsCard stats={stats} address={address} onWithdrawn={refresh} />
 
-      <GateForm onCreated={refresh} />
+      <GateForm onCreated={refresh} erc8004={erc8004} />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <section className="space-y-3 lg:col-span-2">

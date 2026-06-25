@@ -15,6 +15,10 @@ export interface GatedEndpoint {
   description: string;
   createdAt: number;
   active: boolean;
+  /** ERC-8004: only serve agents with a registered on-chain identity. */
+  requireIdentity?: boolean;
+  /** ERC-8004: minimum agent reputation (number of prior on-chain attestations). */
+  minReputation?: number;
 }
 
 /** One request that hit a gated endpoint (paid or unpaid). */
@@ -38,6 +42,10 @@ export interface CallRecord {
   payer?: string;
   /** Settlement transaction hash. */
   txHash?: string;
+  /** ERC-8004 agent identity of the payer (0/undefined = unregistered). */
+  agentId?: number;
+  /** Payer's ERC-8004 reputation at call time. */
+  agentReputation?: number;
   network: string;
   durationMs: number;
 }

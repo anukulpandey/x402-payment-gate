@@ -1,10 +1,11 @@
 import { Router, type Request, type Response } from 'express';
 import { Buffer } from 'node:buffer';
 import { nanoid } from 'nanoid';
-import { config } from '../config.js';
+import { config, erc8004Enabled } from '../config.js';
 import { store } from '../store.js';
 import { splitRevenue } from '../revenue.js';
 import { assertPublicUrl } from '../net/ssrf.js';
+import { resolveAgent, giveFeedback, type AgentIdentity } from '../erc8004/registry.js';
 import {
   buildPaymentRequirements,
   decodePaymentHeader,
@@ -137,6 +138,30 @@ async function handleGateway(req: Request, res: Response): Promise<void> {
     return;
   }
 
+  // ── 2b. ERC-8004: resolve the payer's identity + reputation, enforce policy. ──
+  let agent: AgentIdentity | null = null;
+  if (erc8004Enabled && verification.payer) {
+    agent = await resolveAgent(verification.payer);
+    if (endpoint.requireIdentity && !agent) {
+      res.status(403).json({
+        error: 'agent_identity_required',
+        message:
+          'This gate only serves agents with a registered ERC-8004 identity. Register one and bind your payment wallet, then retry.',
+      });
+      if (!isProbe) recordCall({ ...base, status: 403, paid: false, amountUsd: 0, platformFeeUsd: 0, sellerEarningsUsd: 0, payer: verification.payer, durationMs: Date.now() - started });
+      return;
+    }
+    const minRep = endpoint.minReputation ?? 0;
+    if (minRep > 0 && (!agent || agent.reputation < minRep)) {
+      res.status(403).json({
+        error: 'insufficient_agent_reputation',
+        message: `This gate requires an agent reputation of ${minRep}+; yours is ${agent?.reputation ?? 0}. Earn reputation by completing paid calls on open gates.`,
+      });
+      if (!isProbe) recordCall({ ...base, status: 403, paid: false, amountUsd: 0, platformFeeUsd: 0, sellerEarningsUsd: 0, payer: verification.payer, agentId: agent?.agentId, agentReputation: agent?.reputation, durationMs: Date.now() - started });
+      return;
+    }
+  }
+
   // ── 3. SSRF guard, then proxy to the upstream API. ──
   const url = targetUrl(endpoint, req);
   try {
@@ -224,8 +249,15 @@ async function handleGateway(req: Request, res: Response): Promise<void> {
     sellerEarningsUsd,
     payer: verification.payer ?? settlement.payer,
     txHash: settlement.transaction,
+    agentId: agent?.agentId,
+    agentReputation: agent?.reputation,
     durationMs: Date.now() - started,
   });
+
+  // ── 7. ERC-8004: attest the successful paid interaction → agent reputation. ──
+  if (erc8004Enabled && agent) {
+    void giveFeedback(agent.agentId, 100, 'payment', endpoint.name).catch(() => undefined);
+  }
 }
 
 export const gatewayRouter = Router();

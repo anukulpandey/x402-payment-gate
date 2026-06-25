@@ -5,8 +5,16 @@ Paste your endpoint, set a price-per-call, and get a new gated URL. AI agents th
 hit it **auto-pay in USDC and get the response** — no Stripe, no invoices, no humans
 in the loop. GateKeep takes a cut of every call.
 
+It combines the two primitives of agentic payments: **x402** for the payment rail,
+and **[ERC-8004](https://eips.ethereum.org/EIPS/eip-8004)** (Trustless Agents) for
+on-chain identity + reputation — so a gate can require a *verified* agent and tier
+access by *reputation*, and every paid call writes feedback that builds that agent's
+on-chain track record. Payments that are also identity- and reputation-aware.
+
 > 402 Payment Required was the one HTTP status code the web never shipped. x402 finally
 > turns it on — and agents, unlike humans, are happy to pay $0.001 to call an API.
+>
+> Built for the **Avalanche "Agentic Payments" Speedrun** — live on Fuji, x402 + ERC-8004.
 
 ---
 
@@ -217,6 +225,37 @@ All the knobs are in [`.env.example`](.env.example) (mock) and
 
 ---
 
+## Identity & reputation — ERC-8004
+
+x402 settles the payment; **[ERC-8004](https://eips.ethereum.org/EIPS/eip-8004)**
+(Trustless Agents) answers *who* is paying and *whether to trust them*. GateKeep
+deploys ERC-8004 **Identity** + **Reputation** registries on Fuji and makes every
+gate optionally **identity- and reputation-aware**:
+
+- **Verified agents only** — a gate can require the caller to hold a registered
+  ERC-8004 identity (an agentId NFT with a bound payment wallet). The gateway
+  resolves the paying wallet → agentId; unregistered agents get a `403`.
+- **Reputation tiers** — a gate can require a minimum reputation (number of prior
+  on-chain attestations). Low-rep agents are turned away until they earn trust.
+- **Feedback loop** — after each successful paid call, the gate writes on-chain
+  `giveFeedback` about the agent → its reputation grows, unlocking higher tiers.
+
+[![Identity- and reputation-aware gates](docs/images/erc8004.png)](docs/images/erc8004.png)
+
+```bash
+npm run fuji:erc8004    # deploy the registries + register the demo agent
+```
+
+Verified end-to-end on Fuji: an unregistered (but funded) agent → identity-gated
+gate returns `403 agent_identity_required`; a registered agent is served and its
+reputation climbs `0 → 3` across paid calls, unlocking a `reputation 3+` gate.
+Contracts: [`contracts/ERC8004.sol`](contracts/ERC8004.sol); integration:
+[`src/erc8004/registry.ts`](src/erc8004/registry.ts) + the gate policy in
+[`src/routes/gateway.ts`](src/routes/gateway.ts). Design notes in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#12-erc-8004--identity--reputation).
+
+---
+
 ## Integrating as an agent developer
 
 Any x402 client works. With the official `x402-fetch`:
@@ -274,6 +313,7 @@ sees only their own gates, calls, and earnings.
 | `npm run agent` | Standalone agent that pays a gate |
 | `npm run fuji:setup` | Generate wallets + wire **Avalanche Fuji** testnet (`.env.fuji`) |
 | `npm run fuji:deploy` | Deploy MockUSDC to Fuji + mint to the agent |
+| `npm run fuji:erc8004` | Deploy ERC-8004 Identity + Reputation registries + register the agent |
 | `npm run fuji:start` | Run GateKeep against Avalanche Fuji |
 | `npm run fuji:agent` | Pay a Fuji gate from the terminal |
 | `npm run contracts:build` | Recompile `MockUSDC.sol` → `contracts/out/` |

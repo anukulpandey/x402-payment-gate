@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
-import { config, isLive, platformFeeRate } from '../config.js';
+import { config, isLive, erc8004Enabled, platformFeeRate } from '../config.js';
 import { store } from '../store.js';
 import { round6, splitRevenue } from '../revenue.js';
 import { addressForKey, signPayment } from '../x402/signer.js';
@@ -27,6 +27,9 @@ apiRouter.get('/config', (_req, res) => {
     platformFeeRate,
     agentAddress,
     chain: isLive ? { chainId: config.chainId, rpcUrl: config.rpcUrl, usdcAddress: config.usdcAddress } : null,
+    erc8004: erc8004Enabled
+      ? { identityRegistry: config.identityRegistry, reputationRegistry: config.reputationRegistry }
+      : null,
   });
 });
 
@@ -66,6 +69,8 @@ const CreateSchema = z.object({
   method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'ANY']).default('ANY'),
   priceUsd: z.coerce.number().min(0.000001).max(1000),
   description: z.string().trim().max(280).optional().default(''),
+  requireIdentity: z.coerce.boolean().optional().default(false),
+  minReputation: z.coerce.number().int().min(0).max(1000).optional().default(0),
 });
 
 apiRouter.post('/endpoints', (req, res) => {
@@ -120,6 +125,8 @@ const PatchSchema = z.object({
   description: z.string().trim().max(280).optional(),
   method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'ANY']).optional(),
   active: z.boolean().optional(),
+  requireIdentity: z.coerce.boolean().optional(),
+  minReputation: z.coerce.number().int().min(0).max(1000).optional(),
 });
 
 apiRouter.patch('/endpoints/:id', (req, res) => {

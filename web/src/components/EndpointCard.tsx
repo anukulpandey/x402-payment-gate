@@ -50,6 +50,8 @@ export function EndpointCard({
             <h3 className="truncate text-sm font-semibold text-white">{endpoint.name}</h3>
             <Badge tone="slate">{endpoint.method}</Badge>
             {!endpoint.active && <Badge tone="amber">paused</Badge>}
+            {endpoint.requireIdentity && <Badge tone="violet">🆔 verified</Badge>}
+            {!!endpoint.minReputation && <Badge tone="violet">⭐ {endpoint.minReputation}+</Badge>}
           </div>
           <div className="mt-0.5 truncate font-mono text-[11px] text-slate-500" title={endpoint.upstreamUrl}>
             → {endpoint.upstreamUrl}

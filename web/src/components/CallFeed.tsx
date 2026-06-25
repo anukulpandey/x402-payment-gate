@@ -27,9 +27,12 @@ export function CallFeed({ calls }: { calls: CallRecord[] }) {
               <div className="truncate text-[11px] text-slate-500">
                 {c.paid ? (
                   <>
-                    {shortAddr(c.payer)} paid {usd(c.amountUsd)}
+                    {c.agentId ? `agent #${c.agentId}` : shortAddr(c.payer)}
+                    {c.agentId ? ` ⭐${c.agentReputation ?? 0}` : ''} paid {usd(c.amountUsd)}
                     {c.txHash ? ` · tx ${shortAddr(c.txHash)}` : ''}
                   </>
+                ) : c.status === 403 ? (
+                  <>403 — {c.agentId ? 'reputation too low' : 'identity required'}</>
                 ) : (
                   <>402 — payment required</>
                 )}

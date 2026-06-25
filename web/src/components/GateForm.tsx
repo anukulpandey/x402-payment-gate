@@ -4,12 +4,14 @@ import { Card, Copyable, Spinner, cx } from './ui';
 
 const METHODS = ['ANY', 'GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 
-export function GateForm({ onCreated }: { onCreated: (e: Endpoint) => void }) {
+export function GateForm({ onCreated, erc8004 }: { onCreated: (e: Endpoint) => void; erc8004?: boolean }) {
   const [url, setUrl] = useState('');
   const [name, setName] = useState('');
   const [method, setMethod] = useState('GET');
   const [price, setPrice] = useState('0.01');
   const [description, setDescription] = useState('');
+  const [requireIdentity, setRequireIdentity] = useState(false);
+  const [minReputation, setMinReputation] = useState('0');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<Endpoint | null>(null);
@@ -25,12 +27,16 @@ export function GateForm({ onCreated }: { onCreated: (e: Endpoint) => void }) {
         method,
         priceUsd: Number(price),
         description: description.trim(),
+        requireIdentity,
+        minReputation: Number(minReputation) || 0,
       });
       setCreated(endpoint);
       onCreated(endpoint);
       setUrl('');
       setName('');
       setDescription('');
+      setRequireIdentity(false);
+      setMinReputation('0');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create gate');
     } finally {
@@ -107,6 +113,35 @@ export function GateForm({ onCreated }: { onCreated: (e: Endpoint) => void }) {
             className={inputCls}
           />
         </Field>
+
+        {erc8004 && (
+          <div className="rounded-xl border border-white/8 bg-black/20 p-3">
+            <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+              Agent policy (ERC-8004)
+            </div>
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300">
+              <input
+                type="checkbox"
+                checked={requireIdentity}
+                onChange={(e) => setRequireIdentity(e.target.checked)}
+                className="h-4 w-4 accent-accent-500"
+              />
+              Require a verified agent identity (registered on-chain)
+            </label>
+            <div className="mt-2 flex items-center gap-2 text-sm text-slate-300">
+              <span>Minimum agent reputation</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={minReputation}
+                onChange={(e) => setMinReputation(e.target.value)}
+                className={cx(inputCls, 'w-20 py-1.5')}
+              />
+              <span className="text-xs text-slate-500">prior on-chain attestations</span>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-300">

@@ -341,3 +341,45 @@ disabled. The take rate is set by `PLATFORM_FEE_BPS` (basis points; `1000` = 10%
 | **`X-PAYMENT-RESPONSE`** | Base64 response header carrying the settlement result (tx hash). |
 | **`payTo`** | The address that receives the USDC (here, the platform wallet). |
 | **atomic units** | Token amount in its smallest unit. USDC has 6 decimals, so `$0.01` = `10000`. |
+| **ERC-8004** | Trustless Agents standard: on-chain identity, reputation, validation registries. |
+
+---
+
+## 12. ERC-8004 — identity & reputation
+
+x402 settles the money; **ERC-8004** ("Trustless Agents") answers *who is paying*
+and *whether to trust them*. GateKeep composes the two so payments are
+identity- and reputation-aware.
+
+**Registries** ([`contracts/ERC8004.sol`](../contracts/ERC8004.sol)), deployed on Fuji:
+
+- **Identity Registry** — an ERC-721 of agent identities. `register(agentURI)` mints
+  an `agentId`; `setAgentWallet(agentId, wallet)` binds the wallet the agent pays
+  from (plus a `wallet → agentId` reverse index so a gateway can resolve a payer).
+- **Reputation Registry** — `giveFeedback(agentId, value, …)` records attestations;
+  `getSummary(agentId)` returns the count + average. GateKeep uses the **count** of
+  positive attestations as the reputation signal.
+
+**Per-gate policy** (`requireIdentity`, `minReputation` on each gate). In the
+gateway, *after* the x402 payment verifies and *before* settlement:
+
+```mermaid
+flowchart LR
+    P["valid X-PAYMENT<br/>payer = wallet"] --> R["resolve wallet → agentId<br/>(Identity Registry)"]
+    R -->|no identity & gate requires it| D1["403 agent_identity_required"]
+    R -->|reputation < gate min| D2["403 insufficient_agent_reputation"]
+    R -->|ok| S["settle (x402) → deliver"]
+    S --> F["giveFeedback(agentId, +)<br/>→ reputation grows"]
+```
+
+Every successful paid call writes feedback about the agent, so an agent's on-chain
+reputation **builds as it transacts** — and unlocks higher-tier gates. This is the
+"payments that are also identity and reputation aware" combination the Avalanche
+Agentic-Payments brief calls out. Integration lives in
+[`src/erc8004/registry.ts`](../src/erc8004/registry.ts) (resolve / read reputation /
+write feedback) and the policy checks in [`src/routes/gateway.ts`](../src/routes/gateway.ts).
+
+> Simplifications for the sprint: `setAgentWallet` is owner-gated (no EIP-712
+> delegation), the Validation Registry is omitted, and feedback is written by the
+> platform wallet attesting successful payments. The interfaces match ERC-8004 so
+> the registries are drop-in compatible.

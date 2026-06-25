@@ -9,6 +9,7 @@ export interface AppConfig {
   platformFeeRate: number;
   agentAddress: string;
   chain: { chainId: number; rpcUrl: string; usdcAddress: string } | null;
+  erc8004: { identityRegistry: string; reputationRegistry: string } | null;
 }
 
 export interface EndpointStats {
@@ -30,6 +31,8 @@ export interface Endpoint {
   description: string;
   createdAt: number;
   active: boolean;
+  requireIdentity?: boolean;
+  minReputation?: number;
   gatedUrl: string;
   stats: EndpointStats;
 }
@@ -77,6 +80,8 @@ export interface CallRecord {
   sellerEarningsUsd: number;
   payer?: string;
   txHash?: string;
+  agentId?: number;
+  agentReputation?: number;
   network: string;
   durationMs: number;
 }
@@ -105,6 +110,8 @@ export interface NewEndpoint {
   method: string;
   priceUsd: number;
   description?: string;
+  requireIdentity?: boolean;
+  minReputation?: number;
 }
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {

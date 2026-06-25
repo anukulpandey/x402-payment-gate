@@ -53,10 +53,18 @@ export const config = {
   usdcDecimals: parseInt(env('USDC_DECIMALS', '6'), 10),
   /** Facilitator wallet — submits settlement txs and pays gas. */
   facilitatorPrivateKey: env('FACILITATOR_PRIVATE_KEY', DEMO_SIGNING_KEY) as `0x${string}`,
+
+  // ── ERC-8004 trustless-agents registries (chain mode). Set by deploy:erc8004. ──
+  identityRegistry: env('IDENTITY_REGISTRY', '') as `0x${string}` | '',
+  reputationRegistry: env('REPUTATION_REGISTRY', '') as `0x${string}` | '',
 };
 
 /** True when settlement actually hits a blockchain. */
 export const isLive = config.mode === 'chain';
+
+/** True when ERC-8004 identity/reputation features are available. */
+export const erc8004Enabled =
+  isLive && !!config.identityRegistry && !!config.reputationRegistry;
 
 /** Platform fee as a fraction (0.10 for 10%). */
 export const platformFeeRate = config.platformFeeBps / 10_000;
