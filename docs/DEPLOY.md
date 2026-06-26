@@ -24,13 +24,17 @@ npm run fuji:setup     # generates wallets → .env.fuji (gitignored), prints th
 # → fund the printed facilitator address at https://faucet.avax.network
 npm run fuji:deploy    # deploys MockUSDC to Fuji, mints USDC to the agent,
                        # and writes USDC_ADDRESS back into .env.fuji
+npm run fuji:erc8004   # (optional) deploy ERC-8004 Identity + Reputation registries
+                       # + register the demo agent — enables identity/reputation gates
 npm run fuji:start     # runs GateKeep against Fuji on http://localhost:4021
 ```
 
 Then open the dashboard, click **Run agent**, and confirm the settlement tx on
 [Snowtrace testnet](https://testnet.snowtrace.io). `npm run fuji:agent` pays a gate
-from the terminal. The sections below explain what each step does and the
-production (mainnet / real-USDC) variations.
+from the terminal. After `fuji:erc8004`, gates gain a **Require verified agent** /
+**Min reputation** policy (ERC-8004) — see
+[ARCHITECTURE §12](./ARCHITECTURE.md#12-erc-8004--identity--reputation). The sections
+below explain what each step does and the production (mainnet / real-USDC) variations.
 
 The dashboard, running against Fuji — earnings withdraw on-chain to your wallet:
 

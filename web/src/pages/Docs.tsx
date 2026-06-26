@@ -6,12 +6,13 @@ const TOC = [
   { id: 'quickstart', label: 'Quickstart' },
   { id: 'x402', label: 'How x402 works' },
   { id: 'agent', label: 'Paying as an agent' },
+  { id: 'identity', label: 'Identity & reputation' },
   { id: 'login', label: 'Wallet login (SIWE)' },
   { id: 'api', label: 'API reference' },
   { id: 'deploy', label: 'Deploy / networks' },
 ];
 
-const REPO = 'https://github.com/gatekeep/gatekeep';
+const REPO = 'https://github.com/anukulpandey/x402-payment-gate';
 
 export function Docs() {
   return (
@@ -78,6 +79,7 @@ export function Docs() {
               <Quickstart />
               <X402 />
               <Agent />
+              <Identity />
               <Login />
               <Api />
               <Deploy />
@@ -258,6 +260,59 @@ function Agent() {
   );
 }
 
+/* ── Identity & reputation (ERC-8004) ──────────────────────────────────── */
+function Identity() {
+  return (
+    <article id="identity" className="scroll-mt-24">
+      <SectionHeading
+        eyebrow="ERC-8004"
+        title="Identity & reputation"
+        sub="x402 settles the payment; ERC-8004 answers who is paying and whether to trust them. Gates can require a verified agent and tier access by on-chain reputation."
+      />
+      <div className="mt-6 space-y-4 text-[15px] leading-relaxed text-slate-300">
+        <p>
+          GateKeep deploys ERC-8004{' '}
+          <span className="text-white">Identity</span> and{' '}
+          <span className="text-white">Reputation</span> registries on Avalanche. Agents register an
+          on-chain identity (an <span className="font-mono text-accent-300">agentId</span>) and bind the
+          wallet they pay from, so a gate can resolve a paying wallet to a known, verifiable agent.
+        </p>
+      </div>
+      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+        {[
+          { t: 'Verified agents only', d: 'A gate can require a registered identity — unregistered wallets get a 403.' },
+          { t: 'Reputation tiers', d: 'Require a minimum reputation (prior on-chain attestations) to access premium gates.' },
+          { t: 'Feedback loop', d: 'Each paid call writes on-chain feedback → the agent’s reputation grows, unlocking higher tiers.' },
+        ].map((c) => (
+          <Card key={c.t} className="p-5">
+            <h3 className="text-sm font-semibold text-white">{c.t}</h3>
+            <p className="mt-1.5 text-sm leading-relaxed text-slate-400">{c.d}</p>
+          </Card>
+        ))}
+      </div>
+      <p className="mt-6 text-sm leading-relaxed text-slate-400">
+        Enforcement happens in the gateway after the x402 payment verifies and before settlement; an
+        unverified or low-reputation agent is turned away with a clear{' '}
+        <span className="font-mono text-accent-300">403</span>:
+      </p>
+      <pre className="mt-4 overflow-x-auto rounded-lg border border-white/10 bg-black/40 p-4 font-mono text-[12.5px] leading-relaxed text-slate-300">
+        <span className="text-amber-300">HTTP/1.1 403 Forbidden</span>
+        {'\n'}
+        {'{'}
+        {'\n'}
+        {'  '}<span className="text-emerald-300">"error"</span>: "agent_identity_required",{'\n'}
+        {'  '}<span className="text-emerald-300">"message"</span>: "Register an ERC-8004 identity and bind your wallet."{'\n'}
+        {'}'}
+      </pre>
+      <p className="mt-4 text-sm leading-relaxed text-slate-400">
+        Set up the registries and register the demo agent with{' '}
+        <span className="font-mono text-accent-300">npm run fuji:erc8004</span>. This is the x402 + ERC-8004
+        combination — payments that are also identity- and reputation-aware.
+      </p>
+    </article>
+  );
+}
+
 /* ── Wallet login (SIWE) ───────────────────────────────────────────────── */
 function Login() {
   const steps = [
@@ -313,12 +368,14 @@ const ENDPOINTS: Row[] = [
   { method: 'POST', path: '/api/auth/verify', desc: 'Verify the signed nonce and open a session.', auth: false },
   { method: 'GET', path: '/api/auth/me', desc: 'Return the currently signed-in wallet.', auth: true },
   { method: 'GET', path: '/api/endpoints', desc: 'List your gates.', auth: true },
-  { method: 'POST', path: '/api/endpoints', desc: 'Create a gate from an endpoint + price.', auth: true },
-  { method: 'PATCH', path: '/api/endpoints/:id', desc: 'Update a gate (price, target, status).', auth: true },
+  { method: 'POST', path: '/api/endpoints', desc: 'Create a gate (price, target, optional ERC-8004 identity/reputation policy).', auth: true },
+  { method: 'POST', path: '/api/examples', desc: 'Add the example endpoints to your account.', auth: true },
+  { method: 'PATCH', path: '/api/endpoints/:id', desc: 'Update a gate (price, target, status, policy).', auth: true },
   { method: 'DELETE', path: '/api/endpoints/:id', desc: 'Delete a gate.', auth: true },
   { method: 'POST', path: '/api/endpoints/:id/simulate', desc: 'Run the agent playground against a gate.', auth: true },
-  { method: 'GET', path: '/api/stats', desc: 'Aggregate earnings and call counts.', auth: true },
+  { method: 'GET', path: '/api/stats', desc: 'Aggregate earnings, call counts, withdrawable balance.', auth: true },
   { method: 'GET', path: '/api/calls', desc: 'Your settled-call ledger.', auth: true },
+  { method: 'POST', path: '/api/withdraw', desc: 'Pay your earned USDC on-chain to your wallet.', auth: true },
   { method: 'ANY', path: '/g/:id', desc: 'The public gated proxy — x402 paywall in front of your API.', auth: false },
 ];
 
