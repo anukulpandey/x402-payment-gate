@@ -36,6 +36,40 @@ More: [how it works](docs/images/how-it-works.png) · [pricing](docs/images/pric
 
 ---
 
+## Deployed on Avalanche Fuji (chain id 43113)
+
+GateKeep runs live on the Avalanche **Fuji testnet**. Three contracts are deployed and
+every payment/withdrawal/attestation is a real on-chain transaction, verifiable on
+[Snowtrace](https://testnet.snowtrace.io).
+
+### Smart contracts
+
+| Contract | Address | What it does |
+| --- | --- | --- |
+| **MockUSDC** (EIP-3009) | [`0x00ddb787…60cb937`](https://testnet.snowtrace.io/address/0x00ddb7879d626fa6365269dc68c6cb26260cb937) | The USDC test token every payment settles in. Implements `transferWithAuthorization` — gasless, signature-based transfers — the **exact mechanism real Circle USDC uses**, so swapping in real USDC needs no code change. |
+| **IdentityRegistry** (ERC-8004) | [`0xde9786b2…7EA7f73`](https://testnet.snowtrace.io/address/0xde9786b26603a54e35749922495d34fca7ea7f73) | ERC-721 of agent identities. An agent calls `register()` → gets an `agentId` and binds its payment wallet, so a gate can resolve a paying wallet to a known, verifiable agent. |
+| **ReputationRegistry** (ERC-8004) | [`0x34c2d005…05965421`](https://testnet.snowtrace.io/address/0x34c2d005e7a3fc907432f5446aaf077f05965421) | Stores `giveFeedback` attestations about each agent (`getSummary` reads count/score). GateKeep writes a positive attestation after every successful paid call → the agent's reputation grows. |
+
+Source: [`contracts/MockUSDC.sol`](contracts/MockUSDC.sol) and [`contracts/ERC8004.sol`](contracts/ERC8004.sol)
+(Identity + Reputation in one file). Compiled with `solc`, deployed with `viem`
+(`scripts/deploy.ts`, `scripts/deploy-erc8004.ts`).
+
+### Key accounts (testnet wallets)
+
+Auto-generated test wallets — their private keys live in the gitignored `.env.fuji`;
+the addresses are public and viewable on Snowtrace. These are **EOAs (wallets), not contracts**:
+
+| Role | Address | What it does |
+| --- | --- | --- |
+| **Facilitator** | `0x8c32F8…319677` | Submits x402 settlement txs + deploys contracts; pays the AVAX gas. |
+| **Platform treasury** | `0xFbA75e…9427a5` | Receives the gross USDC from every call; signs seller withdrawal payouts. |
+| **Demo agent** | `0x0cECD9…87A25F` | The example paying agent (registered as **agentId 1**); holds USDC and pays gates. |
+
+> Production: swap MockUSDC for Circle's real USDC (no deploy needed) and keep your own
+> ERC-8004 registries — only the env addresses change. Full guide: [docs/DEPLOY.md](docs/DEPLOY.md).
+
+---
+
 ## Why this exists
 
 AI agents are becoming the dominant consumers of APIs, but the web has no native way
@@ -329,4 +363,61 @@ rm -rf node_modules package-lock.json && npm install
 
 ---
 
-Built in a day with the [`x402`](https://www.npmjs.com/package/x402) package. Not affiliated with Coinbase or Stripe.
+## Presenting GateKeep — read-before-you-present cheat sheet
+
+Everything you need to explain and demo the project, end to end. Read this top-to-bottom
+and you can present it cold.
+
+### 30-second pitch
+GateKeep is **"Stripe for AI agent API calls."** A developer wraps any REST API behind a
+pay-per-call paywall in one click. When an AI agent calls the gated URL it gets an HTTP 402,
+**auto-pays in USDC over the x402 protocol**, and the call unlocks — **settled on-chain on
+Avalanche**. On top of that we add **ERC-8004**, so a gate can require a *verified* agent
+identity and tier access by *reputation*. **x402 is the payment rail; ERC-8004 is the trust
+layer** — both Speedrun primitives, combined.
+
+### The problem
+APIs were built for humans with credit cards: sign up, copy an API key, get billed monthly.
+Autonomous AI agents can't do any of that — but they *can* pay per request, if the web asks
+them. x402 turns the long-dormant HTTP `402 Payment Required` into that ask; GateKeep makes it
+one click to monetize an API for agents (and take a cut, like Stripe).
+
+### What happens on one paid call (the core flow)
+1. Agent calls the gated URL `…/g/:id` with **no payment**.
+2. GateKeep replies **`402 Payment Required`** + a quote: price, token (USDC), network, pay-to address.
+3. Agent signs an **EIP-3009 `transferWithAuthorization`** — a *gasless* USDC payment (a signature, not a tx).
+4. Agent retries with an **`X-PAYMENT`** header.
+5. GateKeep **verifies** the signature, **resolves the agent's ERC-8004 identity + reputation**, and enforces the gate policy (a `403` if unverified / under the reputation bar).
+6. GateKeep **proxies** the request to your real API, **settles the USDC on-chain** (its facilitator pays the gas), and returns the response + a settlement receipt header.
+7. It **writes on-chain feedback** about the agent (reputation ++) and credits your earnings (you keep **90%**, GateKeep takes **10%**). You **withdraw** earnings on-chain to your wallet anytime.
+
+### Live demo flow (what to click + say)
+1. **Landing page** — the pitch + the `402 → pay → 200` visual.
+2. **Connect wallet** (MetaMask) → sign in. It's **SIWE** (Sign-In with Ethereum): you sign a message, gasless. Your wallet *is* your account and payout address.
+3. **Create a gate** — paste an endpoint, set a price, copy the gated URL.
+4. **Run agent** (playground) — watch the live `402 → sign → settle → 200`, with a real **tx hash on Snowtrace**.
+5. **ERC-8004** — flip a gate to "verified agents only" / "reputation 2+": show an *unregistered* agent get **403**, a *registered* agent get served, and reputation **climbing 0 → 3**, which unlocks the reputation-gated gate.
+6. **Withdraw** — cash earned USDC to your wallet, on-chain, verifiable on Snowtrace.
+7. *(optional)* **CLI** — `npm run fuji:agent -- <gated-url>` pays a gate from the terminal.
+
+### Why it fits the Speedrun
+- **x402** — per-call USDC settlement over HTTP 402, no accounts or API keys (the "x402 Gated API" idea).
+- **ERC-8004** — require a registered identity, tier by reputation, write feedback after each call (the bonus: *payments that are also identity- and reputation-aware*).
+- **Avalanche** — deployed and settling on **Fuji C-Chain (43113)**; mainnet-ready by config.
+
+### Honest answers to likely judge questions
+- **"Why would an agent pay your URL instead of calling the API directly?"** A paywall only has value if the origin isn't otherwise reachable — the seller publishes *only* the gated URL and keeps the origin private/credentialed (GateKeep is the only door; with ERC-8004, agents *discover* the gated URL, not the origin). The seeded demo APIs are public, purely to show the flow. The next step to enforce this for credentialed origins is per-gate upstream-credential injection (GateKeep adds the seller's API key only on a paid request).
+- **"Is the identity sybil-proof?"** No — `register()` is permissionless, so `requireIdentity` only means "has an identity." **Reputation** is the stronger gate because it must be *earned*; full sybil/quality resistance needs staking + the ERC-8004 **Validation Registry** (anticipated by the spec, not in this MVP).
+- **"How is reputation computed?"** The gate writes a positive attestation after each successful paid call, so reputation ≈ count of completed paid calls — a real "non-throwaway agent" signal, but basic (farmable by paying). Richer feedback (distinct counterparties, quality scores) is the upgrade path.
+- **"Is the money real?"** Real USDC moves on **Fuji testnet** (free faucet funds); every settlement and withdrawal is a verifiable on-chain transaction. Mainnet is a config change, not a code change.
+- **"What's MVP vs production?"** MVP simplifications: MockUSDC instead of Circle USDC, `setAgentWallet` owner-gated (no EIP-712 delegation), Validation Registry omitted, a JSON-file store, and a hot-wallet treasury. All interface-compatible with the real standards so they're drop-in swappable.
+
+### Tech stack
+x402 · ERC-8004 · EIP-3009 · EIP-712 · SIWE · Avalanche Fuji (C-Chain) · USDC · Solidity / solc ·
+viem · MetaMask · Node.js · Express · TypeScript · React · Vite · Tailwind CSS.
+
+---
+
+Built for the Avalanche "Agentic Payments" Speedrun with the
+[`x402`](https://www.npmjs.com/package/x402) package and [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004).
+Not affiliated with Coinbase, Circle, or Stripe.
