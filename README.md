@@ -24,6 +24,7 @@ deploy guide, and a presenter's cheat sheet, all in one place.
 ## Contents
 
 - [Demo](#demo)
+- [Pitch deck](#pitch-deck)
 - [Deployed on Avalanche Fuji](#deployed-on-avalanche-fuji)
 - [Why this exists](#why-this-exists)
 - [What is x402](#what-is-x402)
@@ -59,6 +60,16 @@ An AI agent paying a gated API from the terminal — `402 → sign → 200`, set
 | [![Playground](docs/images/playground.png)](docs/images/playground.png) | [![ERC-8004](docs/images/erc8004.png)](docs/images/erc8004.png) |
 
 More: [in-app docs](docs/images/docs.png) · [how it works](docs/images/how-it-works.png) · [pricing](docs/images/pricing.png).
+
+---
+
+## Pitch deck
+
+A 13-slide investor pitch (the story, the market, the moat, the ask):
+**[docs/GateKeep-Investor-Deck.pptx](docs/GateKeep-Investor-Deck.pptx)**.
+
+Regenerate it from source with `python scripts/build_pitch_deck.py` (needs
+[`python-pptx`](https://python-pptx.readthedocs.io)).
 
 ---
 
