@@ -41,6 +41,13 @@ export const config = {
   agentPrivateKey: env('AGENT_PRIVATE_KEY', DEMO_SIGNING_KEY) as `0x${string}`,
   dataDir: env('DATA_DIR', 'data'),
 
+  // ── persistence ──
+  // When these are set (e.g. on Vercel / any serverless host) the store keeps
+  // its data in Upstash Redis instead of a local JSON file, so it survives
+  // across stateless invocations. Unset → local file store (`data/db.json`).
+  redisUrl: env('UPSTASH_REDIS_REST_URL', ''),
+  redisToken: env('UPSTASH_REDIS_REST_TOKEN', ''),
+
   // ── chain-mode settings (ignored in mock mode) ──
   /** EVM JSON-RPC endpoint. Defaults to Avalanche Fuji. */
   rpcUrl: env('RPC_URL', 'https://api.avax-test.network/ext/bc/C/rpc'),

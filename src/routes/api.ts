@@ -73,7 +73,7 @@ const CreateSchema = z.object({
   minReputation: z.coerce.number().int().min(0).max(1000).optional().default(0),
 });
 
-apiRouter.post('/endpoints', (req, res) => {
+apiRouter.post('/endpoints', async (req, res) => {
   const parsed = CreateSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Invalid endpoint', issues: parsed.error.flatten() });
@@ -86,18 +86,18 @@ apiRouter.post('/endpoints', (req, res) => {
     active: true,
     ...parsed.data,
   };
-  store.addEndpoint(endpoint);
+  await store.addEndpoint(endpoint);
   res.status(201).json(withStats(endpoint));
 });
 
 // Seed the seller's account with the example endpoints.
-apiRouter.post('/examples', (req, res) => {
+apiRouter.post('/examples', async (req, res) => {
   const owner = ownerOf(req);
   const existing = new Set(store.listEndpoints(owner).map((e) => e.name));
   let added = 0;
   for (const ex of EXAMPLES) {
     if (existing.has(ex.name)) continue;
-    store.addEndpoint({ id: nanoid(8), ownerAddress: owner, createdAt: Date.now() - added * 1000, active: true, ...ex });
+    await store.addEndpoint({ id: nanoid(8), ownerAddress: owner, createdAt: Date.now() - added * 1000, active: true, ...ex });
     added++;
   }
   res.json({ added, endpoints: store.listEndpoints(owner).map(withStats) });
@@ -129,7 +129,7 @@ const PatchSchema = z.object({
   minReputation: z.coerce.number().int().min(0).max(1000).optional(),
 });
 
-apiRouter.patch('/endpoints/:id', (req, res) => {
+apiRouter.patch('/endpoints/:id', async (req, res) => {
   if (!ownedEndpoint(req, ownerOf(req))) {
     res.status(404).json({ error: 'Not found' });
     return;
@@ -139,16 +139,16 @@ apiRouter.patch('/endpoints/:id', (req, res) => {
     res.status(400).json({ error: 'Invalid patch', issues: parsed.error.flatten() });
     return;
   }
-  const updated = store.updateEndpoint(req.params.id, parsed.data)!;
+  const updated = (await store.updateEndpoint(req.params.id, parsed.data))!;
   res.json(withStats(updated));
 });
 
-apiRouter.delete('/endpoints/:id', (req, res) => {
+apiRouter.delete('/endpoints/:id', async (req, res) => {
   if (!ownedEndpoint(req, ownerOf(req))) {
     res.status(404).json({ deleted: false, error: 'Not found' });
     return;
   }
-  res.json({ deleted: store.deleteEndpoint(req.params.id) });
+  res.json({ deleted: await store.deleteEndpoint(req.params.id) });
 });
 
 // ── The seller's call feed + earnings. ──
@@ -202,7 +202,7 @@ apiRouter.post('/withdraw', async (req, res) => {
   try {
     const { payoutUsdc } = await import('../x402/chain.js');
     const txHash = await payoutUsdc(owner, atomic);
-    store.addWithdrawal({ id: nanoid(10), ownerAddress: owner, amountUsd: availableUsd, txHash, ts: Date.now() });
+    await store.addWithdrawal({ id: nanoid(10), ownerAddress: owner, amountUsd: availableUsd, txHash, ts: Date.now() });
     res.json({ txHash, amountUsd: availableUsd, to: owner, explorerUrl: explorerTx(txHash) });
   } catch (err) {
     res.status(500).json({ error: 'Payout failed', detail: err instanceof Error ? err.message : String(err) });

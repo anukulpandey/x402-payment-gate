@@ -11,3 +11,4 @@ data/
 .env.local
 .env.fuji
 .env.*.local
+.vercel

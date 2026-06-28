@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run vercel-build",
+  "outputDirectory": "web/dist",
+  "functions": {
+    "api/index.ts": { "maxDuration": 30 }
+  },
+  "rewrites": [
+    { "source": "/health", "destination": "/api/index" },
+    { "source": "/g/:path*", "destination": "/api/index" },
+    { "source": "/api/:path*", "destination": "/api/index" },
+    { "source": "/facilitator/:path*", "destination": "/api/index" },
+    { "source": "/((?!.*\\.).*)", "destination": "/index.html" }
+  ]
+}

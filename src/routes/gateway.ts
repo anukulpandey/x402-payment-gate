@@ -55,22 +55,22 @@ function resourceUrl(endpoint: GatedEndpoint, req: Request): string {
   return `${config.publicBaseUrl}/g/${endpoint.id}${subPathOf(req)}`;
 }
 
-function recordCall(partial: Omit<CallRecord, 'id'>): void {
-  store.addCall({ id: nanoid(10), ...partial });
+async function recordCall(partial: Omit<CallRecord, 'id'>): Promise<void> {
+  await store.addCall({ id: nanoid(10), ...partial });
 }
 
 /** A 402 response: quote the price and (optionally) record the unpaid attempt. */
-function require402(
+async function require402(
   res: Response,
   requirements: PaymentRequirements,
   base: Pick<CallRecord, 'endpointId' | 'ownerAddress' | 'endpointName' | 'ts' | 'method' | 'path' | 'network'>,
   error: string,
   payer: string | undefined,
   record: boolean,
-): void {
+): Promise<void> {
   res.status(402).json({ x402Version: X402_VERSION, error, accepts: [requirements] });
   if (record) {
-    recordCall({
+    await recordCall({
       ...base,
       status: 402,
       paid: false,
@@ -119,7 +119,7 @@ async function handleGateway(req: Request, res: Response): Promise<void> {
   // ── 1. No payment → HTTP 402 with requirements. ──
   const paymentHeader = req.header('X-PAYMENT');
   if (!paymentHeader) {
-    require402(res, requirements, base, 'X-PAYMENT header is required', undefined, !isProbe);
+    await require402(res, requirements, base, 'X-PAYMENT header is required', undefined, !isProbe);
     return;
   }
 
@@ -128,13 +128,13 @@ async function handleGateway(req: Request, res: Response): Promise<void> {
   try {
     payload = decodePaymentHeader(paymentHeader);
   } catch {
-    require402(res, requirements, base, 'invalid_payload', undefined, !isProbe);
+    await require402(res, requirements, base, 'invalid_payload', undefined, !isProbe);
     return;
   }
 
   const verification = await verifyPayment(payload, requirements);
   if (!verification.isValid) {
-    require402(res, requirements, base, verification.invalidReason ?? 'invalid_payment', verification.payer, !isProbe);
+    await require402(res, requirements, base, verification.invalidReason ?? 'invalid_payment', verification.payer, !isProbe);
     return;
   }
 
@@ -148,7 +148,7 @@ async function handleGateway(req: Request, res: Response): Promise<void> {
         message:
           'This gate only serves agents with a registered ERC-8004 identity. Register one and bind your payment wallet, then retry.',
       });
-      if (!isProbe) recordCall({ ...base, status: 403, paid: false, amountUsd: 0, platformFeeUsd: 0, sellerEarningsUsd: 0, payer: verification.payer, durationMs: Date.now() - started });
+      if (!isProbe) await recordCall({ ...base, status: 403, paid: false, amountUsd: 0, platformFeeUsd: 0, sellerEarningsUsd: 0, payer: verification.payer, durationMs: Date.now() - started });
       return;
     }
     const minRep = endpoint.minReputation ?? 0;
@@ -157,7 +157,7 @@ async function handleGateway(req: Request, res: Response): Promise<void> {
         error: 'insufficient_agent_reputation',
         message: `This gate requires an agent reputation of ${minRep}+; yours is ${agent?.reputation ?? 0}. Earn reputation by completing paid calls on open gates.`,
       });
-      if (!isProbe) recordCall({ ...base, status: 403, paid: false, amountUsd: 0, platformFeeUsd: 0, sellerEarningsUsd: 0, payer: verification.payer, agentId: agent?.agentId, agentReputation: agent?.reputation, durationMs: Date.now() - started });
+      if (!isProbe) await recordCall({ ...base, status: 403, paid: false, amountUsd: 0, platformFeeUsd: 0, sellerEarningsUsd: 0, payer: verification.payer, agentId: agent?.agentId, agentReputation: agent?.reputation, durationMs: Date.now() - started });
       return;
     }
   }
@@ -168,7 +168,7 @@ async function handleGateway(req: Request, res: Response): Promise<void> {
     await assertPublicUrl(url);
   } catch (err) {
     res.status(502).json({ error: 'Upstream blocked', detail: err instanceof Error ? err.message : String(err) });
-    recordCall({ ...base, status: 502, paid: false, amountUsd: 0, platformFeeUsd: 0, sellerEarningsUsd: 0, payer: verification.payer, durationMs: Date.now() - started });
+    await recordCall({ ...base, status: 502, paid: false, amountUsd: 0, platformFeeUsd: 0, sellerEarningsUsd: 0, payer: verification.payer, durationMs: Date.now() - started });
     return;
   }
 
@@ -196,7 +196,7 @@ async function handleGateway(req: Request, res: Response): Promise<void> {
     }).finally(() => clearTimeout(timer));
   } catch (err) {
     res.status(502).json({ error: 'Upstream request failed', detail: err instanceof Error ? err.message : String(err) });
-    recordCall({ ...base, status: 502, paid: false, amountUsd: 0, platformFeeUsd: 0, sellerEarningsUsd: 0, payer: verification.payer, durationMs: Date.now() - started });
+    await recordCall({ ...base, status: 502, paid: false, amountUsd: 0, platformFeeUsd: 0, sellerEarningsUsd: 0, payer: verification.payer, durationMs: Date.now() - started });
     return;
   }
 
@@ -211,7 +211,7 @@ async function handleGateway(req: Request, res: Response): Promise<void> {
     if (contentType) res.setHeader('content-type', contentType);
     res.setHeader('X-Gatekeep-Charged', '$0 (upstream not 2xx)');
     res.status(upstream.status).send(bodyBuf);
-    recordCall({ ...base, status: upstream.status, paid: false, amountUsd: 0, platformFeeUsd: 0, sellerEarningsUsd: 0, payer: verification.payer, durationMs: Date.now() - started });
+    await recordCall({ ...base, status: upstream.status, paid: false, amountUsd: 0, platformFeeUsd: 0, sellerEarningsUsd: 0, payer: verification.payer, durationMs: Date.now() - started });
     return;
   }
 
@@ -227,7 +227,7 @@ async function handleGateway(req: Request, res: Response): Promise<void> {
     };
   }
   if (!settlement.success) {
-    require402(res, requirements, base, settlement.error ?? 'settlement_failed', verification.payer, true);
+    await require402(res, requirements, base, settlement.error ?? 'settlement_failed', verification.payer, true);
     return;
   }
 
@@ -240,7 +240,7 @@ async function handleGateway(req: Request, res: Response): Promise<void> {
   if (settlement.transaction) res.setHeader('X-Gatekeep-Tx', settlement.transaction);
   res.status(upstream.status).send(bodyBuf);
 
-  recordCall({
+  await recordCall({
     ...base,
     status: upstream.status,
     paid: true,

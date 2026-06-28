@@ -1,63 +1,9 @@
-import express from 'express';
-import cors from 'cors';
-import cookieParser from 'cookie-parser';
-import fs from 'node:fs';
-import path from 'node:path';
+import { app } from './app.js';
 import { config, isLive } from './config.js';
-import { apiRouter } from './routes/api.js';
-import { authRouter } from './routes/auth.js';
-import { gatewayRouter } from './routes/gateway.js';
-import { facilitatorRouter } from './routes/facilitator.js';
 import { addressForKey } from './x402/signer.js';
 
-const app = express();
-app.disable('x-powered-by');
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-    exposedHeaders: ['X-PAYMENT-RESPONSE', 'X-Gatekeep-Charged', 'X-Gatekeep-Tx'],
-  }),
-);
-app.use(cookieParser());
-
-app.get('/health', (_req, res) => res.json({ ok: true, mode: config.mode }));
-
-// The gateway proxies arbitrary upstreams, so it needs the raw request body
-// (mounted before any JSON parser).
-app.use('/g', express.raw({ type: '*/*', limit: '5mb' }), gatewayRouter);
-
-// JSON control-plane APIs.
-app.use('/api/auth', express.json({ limit: '1mb' }), authRouter);
-app.use('/api', express.json({ limit: '1mb' }), apiRouter);
-app.use('/facilitator', express.json({ limit: '1mb' }), facilitatorRouter);
-
-// Serve the built dashboard in production; in dev Vite serves it on :5173.
-const distDir = path.resolve('web/dist');
-const hasDist = fs.existsSync(distDir);
-if (hasDist) {
-  app.use(express.static(distDir));
-  app.get('*', (req, res, next) => {
-    if (
-      req.path.startsWith('/api') ||
-      req.path.startsWith('/g') ||
-      req.path.startsWith('/facilitator')
-    ) {
-      return next();
-    }
-    res.sendFile(path.join(distDir, 'index.html'));
-  });
-} else {
-  app.get('/', (_req, res) =>
-    res.json({
-      service: 'GateKeep',
-      tagline: 'Stripe for AI agent API calls',
-      mode: config.mode,
-      dashboard: 'run `npm run dev`, then open http://localhost:5173',
-    }),
-  );
-}
-
+// Long-running server (local dev / Render / any always-on host). The serverless
+// entry (api/index.ts) imports the same `app` without listening.
 app.listen(config.port, () => {
   const fee = config.platformFeeBps / 100;
   /* eslint-disable no-console */
@@ -74,11 +20,7 @@ app.listen(config.port, () => {
   console.log(`  platform fee: ${fee}%  →  ${config.platformWallet}`);
   console.log(`  agent wallet: ${addressForKey(config.agentPrivateKey)}`);
   console.log(`  api + gates:  http://localhost:${config.port}`);
-  console.log(
-    `  dashboard:    ${
-      hasDist ? `http://localhost:${config.port}` : 'http://localhost:5173  (run: npm run dev)'
-    }`,
-  );
+  console.log(`  dashboard:    http://localhost:${config.port}`);
 
   if (isLive) {
     // Surface the chain wiring (and agent's USDC balance) so a misconfigured
