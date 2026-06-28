@@ -12,3 +12,4 @@ data/
 .env.fuji
 .env.*.local
 .vercel
+*.pdf
