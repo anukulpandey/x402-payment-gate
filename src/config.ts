@@ -45,8 +45,10 @@ export const config = {
   // When these are set (e.g. on Vercel / any serverless host) the store keeps
   // its data in Upstash Redis instead of a local JSON file, so it survives
   // across stateless invocations. Unset → local file store (`data/db.json`).
-  redisUrl: env('UPSTASH_REDIS_REST_URL', ''),
-  redisToken: env('UPSTASH_REDIS_REST_TOKEN', ''),
+  // Accept either the Upstash names or the names Vercel's Marketplace
+  // integration injects (KV_REST_API_*), so it works however Redis was added.
+  redisUrl: env('UPSTASH_REDIS_REST_URL', env('KV_REST_API_URL', '')),
+  redisToken: env('UPSTASH_REDIS_REST_TOKEN', env('KV_REST_API_TOKEN', '')),
 
   // ── chain-mode settings (ignored in mock mode) ──
   /** EVM JSON-RPC endpoint. Defaults to Avalanche Fuji. */

@@ -1,6 +1,8 @@
 import { Readable } from 'node:stream';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-// Built by `npm run vercel-build` (tsc) before functions are bundled.
+// Built by `npm run vercel-build` (tsc) before functions are bundled. It's
+// emitted JS with no type declarations, so silence the implicit-any import.
+// @ts-ignore - no .d.ts for the built app
 import app from '../dist/app.js';
 
 type VercelReq = IncomingMessage & { body?: unknown };
