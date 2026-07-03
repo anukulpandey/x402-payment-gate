@@ -7,6 +7,7 @@
  * .env.fuji), writes `.env.fuji` (gitignored — never committed), then checks
  * the Fuji RPC and prints the facilitator's AVAX balance + next steps.
  */
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -70,6 +71,10 @@ AGENT_PRIVATE_KEY=${agentKey}
 PLATFORM_WALLET=${platformAddr}
 PLATFORM_PRIVATE_KEY=${platformKey}
 PLATFORM_FEE_BPS=1000
+
+# Session-signing secret — required in chain mode (the server refuses to boot
+# with the public default). Generated fresh here.
+JWT_SECRET=${crypto.randomBytes(32).toString('hex')}
 
 PORT=4021
 PUBLIC_BASE_URL=http://localhost:4021

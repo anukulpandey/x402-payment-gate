@@ -603,8 +603,14 @@ AGENT_PRIVATE_KEY=0x<agent key>
 PLATFORM_WALLET=0x<treasury address>
 PLATFORM_PRIVATE_KEY=0x<treasury key — signs seller withdrawals, needs AVAX>
 PLATFORM_FEE_BPS=1000
+JWT_SECRET=<run: openssl rand -hex 32>   # REQUIRED in chain mode — no default
 # IDENTITY_REGISTRY / REPUTATION_REGISTRY — filled in by fuji:erc8004
 ```
+
+> **`JWT_SECRET` is mandatory in chain mode.** The server refuses to boot if it's
+> still the public dev default (a forgeable session would be seller impersonation
+> of a real payout account). `npm run fuji:setup` generates one for you; set it
+> yourself for a manual `.env.fuji` or any hosted deploy.
 
 Then `npm run fuji:deploy` deploys MockUSDC, mints 1,000 test USDC to the agent, and writes
 `USDC_ADDRESS` back. `npm run fuji:start` serves the app. Click **Run agent** and verify the
@@ -628,6 +634,7 @@ USDC_DECIMALS=6
 FACILITATOR_PRIVATE_KEY=0x<facilitator, funded with AVAX for gas>
 PLATFORM_WALLET=0x<your USDC treasury address>
 PLATFORM_PRIVATE_KEY=0x<treasury key — signs seller withdrawals, needs AVAX>
+JWT_SECRET=<run: openssl rand -hex 32>   # REQUIRED in chain mode
 ```
 
 > Confirm `USDC_NAME` / `USDC_VERSION` / `CHAIN_ID` match the token's EIP-712 domain (Circle
