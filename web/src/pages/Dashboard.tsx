@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api, shortAddr, type CallRecord, type Endpoint, type SellerStats } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useWallet } from '../lib/wallet';
@@ -25,7 +26,7 @@ export function Dashboard() {
   return <DashboardContent address={address} />;
 }
 
-function SignInGate() {
+export function SignInGate() {
   const { error, signingIn } = useAuth();
   return (
     <Container className="py-20">
@@ -123,6 +124,9 @@ function DashboardContent({ address }: { address: string }) {
               Switch to Fuji
             </button>
           )}
+          <Link to="/app/analytics" className={btn('outline', 'sm')}>
+            Analytics →
+          </Link>
         </div>
       </div>
 

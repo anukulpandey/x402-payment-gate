@@ -56,6 +56,8 @@ export interface SellerStats {
   availableUsd: number;
   canWithdraw: boolean;
   lastWithdrawal: Withdrawal | null;
+  hasDemoData?: boolean;
+  demoEarningsUsd?: number;
 }
 
 export interface WithdrawResult {
@@ -80,10 +82,83 @@ export interface CallRecord {
   sellerEarningsUsd: number;
   payer?: string;
   txHash?: string;
+  /** Synthetic record from POST /api/demo-data (never withdrawable). */
+  demo?: boolean;
   agentId?: number;
   agentReputation?: number;
   network: string;
   durationMs: number;
+}
+
+// ── analytics (mirrors src/analytics.ts — the wire contract) ──
+export type AnalyticsRange = '24h' | '7d' | '30d';
+export interface AnalyticsBucket {
+  ts: number;
+  grossUsd: number;
+  feeUsd: number;
+  earningsUsd: number;
+  paidCalls: number;
+  unpaidCalls: number;
+  avgLatencyMs: number;
+}
+export interface DeltaStat {
+  current: number;
+  previous: number;
+  /** Percent change vs the prior equal-length window. null = "new" (prev 0, cur > 0). */
+  deltaPct: number | null;
+}
+export interface AnalyticsTotals {
+  grossUsd: DeltaStat;
+  earningsUsd: DeltaStat;
+  feeUsd: DeltaStat;
+  paidCalls: DeltaStat;
+  totalCalls: DeltaStat;
+  successRatePct: DeltaStat;
+  avgLatencyMs: DeltaStat;
+}
+export interface EndpointBreakdownRow {
+  endpointId: string;
+  name: string;
+  active: boolean;
+  priceUsd: number;
+  calls: number;
+  paidCalls: number;
+  grossUsd: number;
+  earningsUsd: number;
+  avgLatencyMs: number;
+  errorRatePct: number;
+  revenueSharePct: number;
+}
+export interface AgentRow {
+  payer: string;
+  agentId?: number;
+  agentReputation?: number;
+  calls: number;
+  spendUsd: number;
+  lastTs: number;
+  demo: boolean;
+}
+export interface LatencyStats {
+  p50: number;
+  p95: number;
+  avg: number;
+  max: number;
+  count: number;
+}
+export interface AnalyticsResponse {
+  range: AnalyticsRange;
+  bucketMs: number;
+  from: number;
+  to: number;
+  generatedAt: number;
+  series: AnalyticsBucket[];
+  totals: AnalyticsTotals;
+  endpoints: EndpointBreakdownRow[];
+  agents: AgentRow[];
+  latency: LatencyStats;
+  statusCodes: { status: number; count: number }[];
+  sampleTruncated: boolean;
+  hasDemoData: boolean;
 }
 
 export type StepKind = 'request' | 'quote' | 'sign' | 'pay' | 'settle' | 'deliver' | 'split';
@@ -144,6 +219,9 @@ export const api = {
   stats: () => req<SellerStats>('/api/stats'),
   withdraw: () => req<WithdrawResult>('/api/withdraw', { method: 'POST' }),
   calls: (limit = 30) => req<CallRecord[]>(`/api/calls?limit=${limit}`),
+  analytics: (range: AnalyticsRange) => req<AnalyticsResponse>(`/api/analytics?range=${range}`),
+  generateDemoData: () => req<{ added: number }>('/api/demo-data', jsonInit('POST', {})),
+  clearDemoData: () => req<{ removed: number }>('/api/demo-data', { method: 'DELETE' }),
   loadExamples: () => req<{ added: number; endpoints: Endpoint[] }>('/api/examples', jsonInit('POST', {})),
   create: (body: NewEndpoint) => req<Endpoint>('/api/endpoints', jsonInit('POST', body)),
   patch: (id: string, body: Partial<Pick<Endpoint, 'active' | 'priceUsd' | 'name' | 'description'>>) =>
@@ -164,6 +242,13 @@ export function usd(n: number): string {
 }
 export function shortAddr(a?: string | null): string {
   return a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '—';
+}
+export function ms(n: number): string {
+  if (!n) return '0ms';
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}s` : `${Math.round(n)}ms`;
+}
+export function pct(n: number): string {
+  return `${(Math.round(n * 10) / 10).toFixed(1)}%`;
 }
 export function timeAgo(ts?: number): string {
   if (!ts) return '—';

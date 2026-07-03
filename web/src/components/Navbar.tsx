@@ -34,6 +34,9 @@ export function Navbar() {
           </nav>
 
           <div className="hidden items-center gap-2 md:flex">
+            <Link to="/app/analytics" className={btn('ghost', 'sm')}>
+              Analytics
+            </Link>
             <Link to="/app" className={btn('ghost', 'sm')}>
               Dashboard
             </Link>
@@ -43,7 +46,8 @@ export function Navbar() {
           <button
             className="rounded-lg p-2 text-slate-300 hover:bg-white/5 md:hidden"
             onClick={() => setOpen((v) => !v)}
-            aria-label="Menu"
+            aria-expanded={open}
+            aria-label={open ? 'Close menu' : 'Open menu'}
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
               <path
@@ -77,6 +81,13 @@ export function Navbar() {
                 className="rounded-lg px-3 py-2.5 text-sm text-slate-300 hover:bg-white/5 hover:text-white"
               >
                 Dashboard
+              </Link>
+              <Link
+                to="/app/analytics"
+                onClick={() => setOpen(false)}
+                className="rounded-lg px-3 py-2.5 text-sm text-slate-300 hover:bg-white/5 hover:text-white"
+              >
+                Analytics
               </Link>
               <div className="px-3 py-2">
                 <WalletButton size="sm" />
