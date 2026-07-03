@@ -51,7 +51,11 @@ An AI agent paying a gated API from the terminal — `402 → sign → 200`, set
 
 ![Agent paying a gate from the CLI](docs/images/agent-demo.gif)
 
-| Landing | Seller dashboard |
+**Analytics dashboard** — revenue & call time-series, per-endpoint breakdown, agent leaderboard, latency percentiles, and status-code splits (hand-rolled SVG charts, zero chart deps):
+
+[![Analytics dashboard](docs/images/analytics.png)](docs/images/analytics.png)
+
+| Landing (animated x402 flow) | Seller dashboard |
 | --- | --- |
 | [![Landing](docs/images/landing.png)](docs/images/landing.png) | [![Dashboard](docs/images/dashboard.png)](docs/images/dashboard.png) |
 

@@ -22,6 +22,8 @@ for (const n of ['BTC Price Oracle', 'GitHub Zen', 'Random Joke']) {
   const e = eps.find((x) => x.name === n);
   await fetch(`${B}/api/endpoints/${e.id}/simulate`, { method: 'POST', headers: auth, body: '{}' });
 }
+// Synthetic 30-day history so the analytics page has something to show.
+await fetch(`${B}/api/demo-data`, { method: 'POST', headers: auth, body: '{}' });
 console.log('demo seller ready:', seller.address);
 
 // 2. Capture.
@@ -46,11 +48,12 @@ async function shot(file, url, opts = {}) {
   console.log('saved docs/images/' + file);
 }
 
-await shot('landing.png', '/');
+await shot('landing.png', '/', { wait: 1600 }); // let the hero SVG + reveals settle
 await shot('how-it-works.png', '/how-it-works');
 await shot('docs.png', '/docs');
 await shot('pricing.png', '/', { scrollTo: 'pricing' });
 await shot('dashboard.png', '/app');
+await shot('analytics.png', '/app/analytics', { wait: 2600 }); // charts measure + draw
 await shot('playground.png', '/app', { click: 'Run agent', clickWait: 6000 });
 
 await browser.close();
