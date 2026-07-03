@@ -13,3 +13,4 @@ data/
 .env.*.local
 .vercel
 *.pdf
+.env*
