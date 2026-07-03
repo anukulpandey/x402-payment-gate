@@ -81,17 +81,25 @@ function TrustStrip() {
         <div className="flex items-center gap-6">
           <span className="shrink-0 text-xs uppercase tracking-wide text-slate-600">Built on</span>
           <div className="marquee-mask min-w-0 flex-1 overflow-hidden">
-            <div className="marquee flex w-max items-center">
-              {[...items, ...items].map((label, i) => (
-                <span
-                  key={i}
-                  aria-hidden={i >= items.length}
-                  className="pr-10 text-sm font-medium whitespace-nowrap text-slate-400"
-                >
-                  {label}
-                </span>
-              ))}
-            </div>
+            {/* Each half is the list repeated 3× so it exceeds even a wide
+                viewport — the -50% loop then has no visible blank gap. */}
+            {(() => {
+              const half = [...items, ...items, ...items];
+              const track = [...half, ...half];
+              return (
+                <div className="marquee flex w-max items-center">
+                  {track.map((label, i) => (
+                    <span
+                      key={i}
+                      aria-hidden={i >= half.length}
+                      className="pr-10 text-sm font-medium whitespace-nowrap text-slate-400"
+                    >
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         </div>
       </Container>

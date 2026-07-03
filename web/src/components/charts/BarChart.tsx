@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { linearScale, niceMax, ticks, useMeasure } from './scale';
+import { linearScale, niceMax, useMeasure } from './scale';
 
 export interface BarChartProps {
   data: { ts: number; values: number[] }[];
@@ -48,9 +48,13 @@ export function BarChart({ data, colors, labels, height = 220, formatLabel }: Ba
 
   const innerW = width - PAD.left - PAD.right;
   const innerH = height - PAD.top - PAD.bottom;
-  const yMax = niceMax(maxSum * 1.05) || 1;
+  // Bars are call counts (integers). Use an integer tick step so the y-axis
+  // never shows fractional counts like "0.75" on low-traffic windows.
+  const rawMax = niceMax(maxSum * 1.05) || 1;
+  const tickStep = Math.max(1, Math.ceil(rawMax / 4));
+  const yMax = tickStep * 4;
   const y = linearScale(0, yMax, height - PAD.bottom, PAD.top);
-  const yTicks = ticks(yMax, 4);
+  const yTicks = [0, 1, 2, 3, 4].map((k) => k * tickStep);
 
   const step = innerW / Math.max(1, data.length);
   const barW = step * 0.62;

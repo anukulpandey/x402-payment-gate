@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api,
@@ -41,10 +41,19 @@ function AnalyticsContent({ address }: { address: string }) {
   const [data, setData] = useState<AnalyticsResponse | null>(null);
   const [range, setRange] = useState<AnalyticsRange>('7d');
   const [busy, setBusy] = useState(false);
+  // Monotonic request token: only the most recently *issued* request may write
+  // state, so an out-of-order poll response (old range, or pre-clear demo data)
+  // can never clobber a fresher one.
+  const gen = useRef(0);
 
   const refresh = useCallback(() => {
-    // Errors keep the last good snapshot (same pattern as the dashboard poll).
-    api.analytics(range).then(setData).catch(() => undefined);
+    const mine = ++gen.current;
+    return api
+      .analytics(range)
+      .then((d) => {
+        if (mine === gen.current) setData(d);
+      })
+      .catch(() => undefined); // keep the last good snapshot
   }, [range]);
 
   useEffect(() => {
@@ -58,7 +67,9 @@ function AnalyticsContent({ address }: { address: string }) {
     setBusy(true);
     try {
       await api.generateDemoData();
-      refresh();
+      await refresh();
+    } catch {
+      /* surfaced by the empty state staying put */
     } finally {
       setBusy(false);
     }
@@ -67,7 +78,9 @@ function AnalyticsContent({ address }: { address: string }) {
     setBusy(true);
     try {
       await api.clearDemoData();
-      refresh();
+      await refresh();
+    } catch {
+      /* leave current view intact */
     } finally {
       setBusy(false);
     }

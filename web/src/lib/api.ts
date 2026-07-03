@@ -236,6 +236,7 @@ export const api = {
 // ── formatting helpers ──
 export function usd(n: number): string {
   if (n === 0) return '$0';
+  if (n > 0 && n < 0.0001) return '<$0.0001'; // don't collapse tiny amounts to "$0.0000"
   if (n < 0.01) return `$${n.toFixed(4)}`;
   if (n < 1) return `$${n.toFixed(3)}`;
   return `$${n.toFixed(2)}`;

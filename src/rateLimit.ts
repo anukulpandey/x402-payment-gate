@@ -10,9 +10,19 @@ const MAX_IPS = 10_000;
 
 const hits = new Map<string, number[]>();
 
+// The `x-gatekeep-internal: probe` header is only trusted from the loopback
+// socket — the dashboard playground calls the gateway on 127.0.0.1 (see
+// api.ts simulate). `req.socket.remoteAddress` is the real peer and cannot be
+// spoofed by a remote client (unlike a plain header or X-Forwarded-For), so an
+// external attacker can't set the header to skip the limiter.
+function isLoopback(req: Request): boolean {
+  const a = req.socket?.remoteAddress ?? '';
+  return a === '127.0.0.1' || a === '::1' || a === '::ffff:127.0.0.1';
+}
+
 export function gatewayRateLimit(req: Request, res: Response, next: NextFunction): void {
-  // Dashboard price probes must never be limited.
-  if (req.header('x-gatekeep-internal') === 'probe') {
+  // Dashboard price probes (local, server-to-server) must never be limited.
+  if (req.header('x-gatekeep-internal') === 'probe' && isLoopback(req)) {
     next();
     return;
   }

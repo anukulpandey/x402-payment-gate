@@ -12,7 +12,7 @@ export interface AreaChartProps {
   renderTooltip?: (d: { ts: number; value: number }, i: number) => ReactNode;
 }
 
-const PAD = { top: 10, right: 12, bottom: 22, left: 44 };
+const PAD = { top: 10, right: 12, bottom: 22, left: 52 };
 const TOOLTIP_W = 150;
 const TOOLTIP_EST_H = 56;
 
@@ -28,7 +28,9 @@ export function AreaChart({
   const [measureRef, width] = useMeasure();
   const [hover, setHover] = useState<number | null>(null);
   const rawId = useId();
-  const gradId = `area-${rawId.replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const safeId = rawId.replace(/[^a-zA-Z0-9_-]/g, '');
+  const gradId = `area-${safeId}`;
+  const clipId = `clip-${safeId}`;
 
   if (width <= 0) {
     return <div ref={measureRef} className="relative w-full overflow-hidden" style={{ height }} />;
@@ -92,6 +94,11 @@ export function AreaChart({
             <stop offset="0" stopColor={color} stopOpacity={0.35} />
             <stop offset="1" stopColor={color} stopOpacity={0} />
           </linearGradient>
+          {/* Clip the fill/line to the plot area — smoothed curves can overshoot
+              below the zero baseline and would otherwise draw "negative" values. */}
+          <clipPath id={clipId}>
+            <rect x={PAD.left} y={PAD.top} width={innerW} height={baseY - PAD.top} />
+          </clipPath>
         </defs>
         {yTicks.map((t) => (
           <g key={t}>
@@ -128,8 +135,10 @@ export function AreaChart({
         ))}
         {hasData && (
           <>
-            <path d={area} fill={`url(#${gradId})`} />
-            <path d={line} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" />
+            <g clipPath={`url(#${clipId})`}>
+              <path d={area} fill={`url(#${gradId})`} />
+              <path d={line} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" />
+            </g>
             {hovered && (
               <>
                 <line

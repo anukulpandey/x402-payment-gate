@@ -12,6 +12,24 @@ interface DB {
 const empty = (): DB => ({ endpoints: [], calls: [], withdrawals: [] });
 let db: DB = empty();
 
+const MAX_CALLS = 2000;
+
+// The ledger is capped at MAX_CALLS. Earnings are derived by summing surviving
+// paid records, so a naive newest-first trim could evict a seller's real paid
+// calls — and a burst of demo records (or another tenant's traffic) could do
+// that cross-tenant, corrupting withdrawable balances. So evict by PRIORITY:
+// synthetic demo records first, then unpaid attempts, and only then real paid
+// calls (oldest within each class). Order is restored to newest-first after.
+// (A per-owner lifetime-earnings accumulator would remove the derive-from-cap
+// dependency entirely — future work.)
+function capCalls() {
+  if (db.calls.length <= MAX_CALLS) return;
+  const rank = (c: CallRecord) => (c.demo ? 0 : c.paid ? 2 : 1);
+  db.calls.sort((a, b) => rank(b) - rank(a) || b.ts - a.ts); // keep high-value + newest
+  db.calls.length = MAX_CALLS;
+  db.calls.sort((a, b) => b.ts - a.ts); // restore newest-first invariant
+}
+
 // O(1) endpoint lookup for the hot gateway path (every /g/:id request hits it).
 // Rebuilt on load; kept in sync by add/delete (update mutates in place, so the
 // Map entry stays valid).
@@ -183,7 +201,7 @@ export const store = {
   },
   async addCall(call: CallRecord): Promise<CallRecord> {
     db.calls.unshift(call);
-    if (db.calls.length > 2000) db.calls.length = 2000;
+    capCalls();
     await save();
     return call;
   },
@@ -195,7 +213,7 @@ export const store = {
    */
   async addCallsBulk(calls: CallRecord[]): Promise<number> {
     db.calls = [...db.calls, ...calls].sort((a, b) => b.ts - a.ts);
-    if (db.calls.length > 2000) db.calls.length = 2000;
+    capCalls();
     await save();
     return calls.length;
   },

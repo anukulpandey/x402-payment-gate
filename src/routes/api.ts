@@ -37,8 +37,11 @@ apiRouter.get('/config', (_req, res) => {
 });
 
 // ── Per-endpoint aggregate stats. ──
+// Excludes demo traffic so the dashboard's per-gate earnings match the
+// withdrawable balance (which also ignores demo). Demo data is an
+// analytics-page concept only.
 function endpointStats(id: string) {
-  const calls = store.callsForEndpoint(id);
+  const calls = store.callsForEndpoint(id).filter((c) => !c.demo);
   const paid = calls.filter((c) => c.paid);
   return {
     totalRequests: calls.length,
@@ -111,16 +114,33 @@ apiRouter.post('/examples', asyncRoute(async (req, res) => {
   res.json({ added, endpoints: store.listEndpoints(owner).map(withStats) });
 }));
 
+// Serialize an owner's mutating requests so two concurrent calls can't
+// interleave a read-modify-write (double payout, duplicated demo sets).
+const inFlight = new Set<string>();
+function lock(key: string): boolean {
+  if (inFlight.has(key)) return false;
+  inFlight.add(key);
+  return true;
+}
+
 // ── Demo traffic: synthetic 30-day history so analytics demos well. ──
 // Records are flagged `demo: true`, never carry a txHash, and are excluded from
 // withdrawable earnings — so they can't pollute a real on-chain payout. Note:
 // bulk-adding ≤300 records can evict the oldest records via the global 2000-cap.
 apiRouter.post('/demo-data', asyncRoute(async (req, res) => {
   const owner = ownerOf(req);
-  if (store.listEndpoints(owner).length === 0) await seedExamples(owner);
-  await store.removeDemoCalls(owner); // idempotent regenerate
-  const added = await store.addCallsBulk(generateDemoCalls(store.listEndpoints(owner)));
-  res.json({ added });
+  if (!lock(`demo:${owner}`)) {
+    res.status(409).json({ error: 'Demo data is already being generated.' });
+    return;
+  }
+  try {
+    if (store.listEndpoints(owner).length === 0) await seedExamples(owner);
+    await store.removeDemoCalls(owner); // idempotent regenerate
+    const added = await store.addCallsBulk(generateDemoCalls(store.listEndpoints(owner)));
+    res.json({ added });
+  } finally {
+    inFlight.delete(`demo:${owner}`);
+  }
 }));
 
 apiRouter.delete('/demo-data', asyncRoute(async (req, res) => {
@@ -235,23 +255,32 @@ apiRouter.post('/withdraw', asyncRoute(async (req, res) => {
     res.status(400).json({ error: 'Withdrawals require chain mode with a funded platform wallet.' });
     return;
   }
-  // `!c.demo`: synthetic demo traffic is never withdrawable.
-  const paid = store.callsForOwner(owner).filter((c) => c.paid && !c.demo);
-  const earningsUsd = round6(paid.reduce((s, c) => s + c.sellerEarningsUsd, 0));
-  const withdrawnUsd = round6(store.withdrawnUsdForOwner(owner));
-  const availableUsd = round6(earningsUsd - withdrawnUsd);
-  const atomic = BigInt(Math.round(availableUsd * 10 ** config.usdcDecimals));
-  if (atomic <= 0n) {
-    res.status(400).json({ error: 'Nothing to withdraw yet.' });
+  // Guard against a double-payout race: two concurrent withdrawals would both
+  // read the same available balance and each fire an on-chain transfer before
+  // either records a Withdrawal. Serialize per owner.
+  if (!lock(`withdraw:${owner}`)) {
+    res.status(409).json({ error: 'A withdrawal is already in progress.' });
     return;
   }
   try {
+    // `!c.demo`: synthetic demo traffic is never withdrawable.
+    const paid = store.callsForOwner(owner).filter((c) => c.paid && !c.demo);
+    const earningsUsd = round6(paid.reduce((s, c) => s + c.sellerEarningsUsd, 0));
+    const withdrawnUsd = round6(store.withdrawnUsdForOwner(owner));
+    const availableUsd = round6(earningsUsd - withdrawnUsd);
+    const atomic = BigInt(Math.round(availableUsd * 10 ** config.usdcDecimals));
+    if (atomic <= 0n) {
+      res.status(400).json({ error: 'Nothing to withdraw yet.' });
+      return;
+    }
     const { payoutUsdc } = await import('../x402/chain.js');
     const txHash = await payoutUsdc(owner, atomic);
     await store.addWithdrawal({ id: nanoid(10), ownerAddress: owner, amountUsd: availableUsd, txHash, ts: Date.now() });
     res.json({ txHash, amountUsd: availableUsd, to: owner, explorerUrl: explorerTx(txHash) });
   } catch (err) {
     res.status(500).json({ error: 'Payout failed', detail: err instanceof Error ? err.message : String(err) });
+  } finally {
+    inFlight.delete(`withdraw:${owner}`);
   }
 }));
 

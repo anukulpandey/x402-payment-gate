@@ -73,11 +73,19 @@ export const config = {
 /** True when settlement actually hits a blockchain. */
 export const isLive = config.mode === 'chain';
 
-// Fail fast rather than ship sessions signed with a public default secret.
-if (isLive && process.env.NODE_ENV === 'production' && config.jwtSecret === DEFAULT_JWT_SECRET) {
-  throw new Error(
-    '[gatekeep] JWT_SECRET is still the default in a production chain-mode deployment. Set JWT_SECRET.',
-  );
+// Never ship sessions signed with the public default secret.
+if (config.jwtSecret === DEFAULT_JWT_SECRET) {
+  if (isLive) {
+    // Chain mode moves real USDC — a forgeable session is impersonation of a
+    // seller's payout account. Fail fast regardless of NODE_ENV (some hosts
+    // don't set it to 'production').
+    throw new Error('[gatekeep] JWT_SECRET is still the default in a chain-mode deployment. Set JWT_SECRET.');
+  }
+  if (process.env.NODE_ENV === 'production') {
+    // Mock mode holds no real funds, but a public demo still shouldn't use the
+    // well-known default (sessions would be forgeable).
+    console.warn('[gatekeep] ⚠️  JWT_SECRET is the default — set it in production to prevent session forgery.');
+  }
 }
 
 /** True when ERC-8004 identity/reputation features are available. */

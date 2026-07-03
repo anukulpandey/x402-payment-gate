@@ -105,8 +105,13 @@ function deltaStat(current: number, previous: number): DeltaStat {
 
 /** Nearest-rank percentile over an ascending-sorted array. 0 when empty. */
 function percentile(sorted: number[], q: number): number {
-  if (sorted.length === 0) return 0;
-  return sorted[Math.floor(q * (sorted.length - 1))];
+  const n = sorted.length;
+  if (n === 0) return 0;
+  // Nearest-rank: rank = ceil(q * n), 1-indexed → clamp into [0, n-1]. This
+  // makes p95 of a small sample land on a high value (not bias low the way
+  // floor(q*(n-1)) does — e.g. n=10, q=.95 gave index 8, now gives index 9).
+  const rank = Math.ceil(q * n);
+  return sorted[Math.min(n, Math.max(1, rank)) - 1];
 }
 
 export function computeAnalytics(

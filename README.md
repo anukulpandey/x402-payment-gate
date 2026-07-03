@@ -210,7 +210,8 @@ GateKeep speaks this faithfully, so **any** standard x402 client (`x402-fetch`,
 ## Quickstart
 
 GateKeep is a full product: a marketing site (`/`, `/how-it-works`, `/docs`,
-`/about`, `/contact`), a **wallet-based login**, and a seller **dashboard** (`/app`).
+`/about`, `/contact`), a **wallet-based login**, a seller **dashboard** (`/app`),
+and an **analytics dashboard** (`/app/analytics`).
 
 ```bash
 npm install        # install deps (needs Node 18+)
@@ -228,6 +229,10 @@ Open **http://localhost:5173**, then:
    and unlock the response — live, step by step. You earn 90% of every call.
 5. Hit **Withdraw** to pay your earned USDC on-chain to your wallet — a real
    transfer you can verify on Snowtrace.
+6. Open **Analytics** (`/app/analytics`) for revenue/call time-series, per-endpoint
+   breakdowns, an agent leaderboard, latency percentiles, and status-code splits —
+   with a one-click **Generate sample traffic** demo mode (flagged, clearable, and
+   never withdrawable).
 
 > **Zero setup.** Out of the box GateKeep runs in **mock mode**: it signs *real*
 > EIP-712 / EIP-3009 payment authorizations and verifies the signatures
@@ -683,8 +688,12 @@ console.log(await res.json());
 | `POST` | `/api/examples` 🔒 | Add the example endpoints to your account. |
 | `POST` | `/api/endpoints/:id/simulate` 🔒 | Run the full pay round-trip, return a transcript. |
 | `GET` | `/api/stats` · `/api/calls` 🔒 | Your earnings, volume, withdrawable balance, call ledger. |
+| `GET` | `/api/analytics?range=24h\|7d\|30d` 🔒 | Time-series revenue/calls, per-endpoint breakdown, top agents, latency p50/p95, status codes. |
+| `POST` · `DELETE` | `/api/demo-data` 🔒 | Generate / clear 30 days of sample traffic (demo-flagged, never withdrawable). |
 | `POST` | `/api/withdraw` 🔒 | Pay your earned USDC on-chain to your wallet. |
 | `POST` | `/facilitator/verify` · `/settle` | GateKeep's own x402 facilitator surface. |
+
+> `/g/:id` is rate-limited to 60 requests/min per IP (dashboard price probes exempt).
 
 🔒 = requires a signed-in wallet (session cookie).
 
