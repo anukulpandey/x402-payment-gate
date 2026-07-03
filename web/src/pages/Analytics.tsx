@@ -5,13 +5,10 @@ import {
   usd,
   ms,
   pct,
-  shortAddr,
   type AnalyticsRange,
   type AnalyticsResponse,
 } from '../lib/api';
-import { useAuth } from '../lib/auth';
-import { Container, Card, Button, Badge, Spinner, btn, cx } from '../components/ui';
-import { SignInGate } from './Dashboard';
+import { Card, Button, Badge, btn, cx } from '../components/ui';
 import { AreaChart } from '../components/charts/AreaChart';
 import { BarChart } from '../components/charts/BarChart';
 import { RangeSwitcher } from '../components/analytics/RangeSwitcher';
@@ -21,23 +18,10 @@ import { AgentsLeaderboard } from '../components/analytics/AgentsLeaderboard';
 import { LatencyPanel } from '../components/analytics/LatencyPanel';
 import { StatusPanel } from '../components/analytics/StatusPanel';
 
-export function Analytics() {
-  const { address, loading } = useAuth();
-  if (loading) {
-    return (
-      <Container className="grid place-items-center py-32 text-slate-400">
-        <Spinner className="text-accent-300" />
-      </Container>
-    );
-  }
-  if (!address) return <SignInGate />;
-  return <AnalyticsContent address={address} />;
-}
-
 const hourFmt = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 const dayFmt = (ts: number) => new Date(ts).toLocaleDateString([], { month: 'short', day: 'numeric' });
 
-function AnalyticsContent({ address }: { address: string }) {
+export function Analytics() {
   const [data, setData] = useState<AnalyticsResponse | null>(null);
   const [range, setRange] = useState<AnalyticsRange>('7d');
   const [busy, setBusy] = useState(false);
@@ -93,15 +77,12 @@ function AnalyticsContent({ address }: { address: string }) {
     data.series.every((b) => b.paidCalls === 0 && b.unpaidCalls === 0);
 
   return (
-    <Container className="space-y-6 py-8">
-      {/* header */}
-      <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-white">Analytics</h1>
-          <p className="mt-0.5 text-sm text-slate-400">
-            Traffic &amp; revenue for <span className="font-mono text-slate-300">{shortAddr(address)}</span>
-          </p>
-        </div>
+    <div className="space-y-6">
+      {/* controls */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold text-white">
+          Analytics <span className="ml-1 text-sm font-normal text-slate-500">· traffic &amp; revenue</span>
+        </h2>
         <div className="flex flex-wrap items-center gap-2">
           {data?.hasDemoData && (
             <>
@@ -112,9 +93,6 @@ function AnalyticsContent({ address }: { address: string }) {
             </>
           )}
           <RangeSwitcher value={range} onChange={setRange} />
-          <Link to="/app" className={btn('ghost', 'sm')}>
-            ← Dashboard
-          </Link>
         </div>
       </div>
 
@@ -209,7 +187,7 @@ function AnalyticsContent({ address }: { address: string }) {
           )}
         </>
       )}
-    </Container>
+    </div>
   );
 }
 

@@ -219,6 +219,7 @@ export const api = {
   stats: () => req<SellerStats>('/api/stats'),
   withdraw: () => req<WithdrawResult>('/api/withdraw', { method: 'POST' }),
   calls: (limit = 30) => req<CallRecord[]>(`/api/calls?limit=${limit}`),
+  withdrawals: () => req<Withdrawal[]>('/api/withdrawals'),
   analytics: (range: AnalyticsRange) => req<AnalyticsResponse>(`/api/analytics?range=${range}`),
   generateDemoData: () => req<{ added: number }>('/api/demo-data', jsonInit('POST', {})),
   clearDemoData: () => req<{ removed: number }>('/api/demo-data', { method: 'DELETE' }),

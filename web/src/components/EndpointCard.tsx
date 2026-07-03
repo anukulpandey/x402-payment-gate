@@ -43,7 +43,7 @@ export function EndpointCard({
   }
 
   return (
-    <Card className={cx('flex flex-col gap-3 p-4 transition', !endpoint.active && 'opacity-60')}>
+    <Card className={cx('flex min-w-0 flex-col gap-3 p-4 transition', !endpoint.active && 'opacity-60')}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2">

@@ -201,6 +201,11 @@ apiRouter.get('/calls', (req, res) => {
   res.json(store.callsForOwner(ownerOf(req), limit));
 });
 
+// Full withdrawal history for the Payouts page (newest first).
+apiRouter.get('/withdrawals', (req, res) => {
+  res.json(store.withdrawalsForOwner(ownerOf(req)));
+});
+
 apiRouter.get('/stats', (req, res) => {
   const owner = ownerOf(req);
   const calls = store.callsForOwner(owner);

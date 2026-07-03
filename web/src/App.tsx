@@ -6,7 +6,11 @@ import { Footer } from './components/Footer';
 import { ScrollToTop } from './components/ScrollToTop';
 import { Container, btn } from './components/ui';
 import { Landing } from './pages/Landing';
-import { Dashboard } from './pages/Dashboard';
+import { DashboardLayout } from './pages/dashboard/DashboardLayout';
+import { Overview } from './pages/dashboard/Overview';
+import { Gates } from './pages/dashboard/Gates';
+import { Payouts } from './pages/dashboard/Payouts';
+import { Activity } from './pages/dashboard/Activity';
 import { Analytics } from './pages/Analytics';
 import { HowItWorks } from './pages/HowItWorks';
 import { About } from './pages/About';
@@ -57,8 +61,13 @@ export default function App() {
               <Route path="/about" element={<About />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/docs" element={<Docs />} />
-              <Route path="/app" element={<Dashboard />} />
-              <Route path="/app/analytics" element={<Analytics />} />
+              <Route path="/app" element={<DashboardLayout />}>
+                <Route index element={<Overview />} />
+                <Route path="gates" element={<Gates />} />
+                <Route path="payouts" element={<Payouts />} />
+                <Route path="activity" element={<Activity />} />
+                <Route path="analytics" element={<Analytics />} />
+              </Route>
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>
