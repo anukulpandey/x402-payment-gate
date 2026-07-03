@@ -19,6 +19,8 @@ function env(key: string, fallback: string): string {
 // signing. It never holds real funds. Chain mode supplies real keys via env.
 const DEMO_SIGNING_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
 
+const DEFAULT_JWT_SECRET = 'gatekeep-dev-secret-change-in-production';
+
 const port = parseInt(env('PORT', '4021'), 10);
 const mode = env('X402_MODE', 'mock') as SettlementMode;
 
@@ -34,7 +36,7 @@ export const config = {
   /** Platform wallet key — signs seller payout (withdrawal) transfers in chain mode. */
   platformPrivateKey: env('PLATFORM_PRIVATE_KEY', '') as `0x${string}` | '',
   /** Secret for signing session JWTs. CHANGE IN PRODUCTION. */
-  jwtSecret: env('JWT_SECRET', 'gatekeep-dev-secret-change-in-production'),
+  jwtSecret: env('JWT_SECRET', DEFAULT_JWT_SECRET),
   /** Platform take rate in basis points (1000 = 10%). */
   platformFeeBps: parseInt(env('PLATFORM_FEE_BPS', '1000'), 10),
   /** The paying demo agent. In chain mode this account must hold USDC. */
@@ -70,6 +72,13 @@ export const config = {
 
 /** True when settlement actually hits a blockchain. */
 export const isLive = config.mode === 'chain';
+
+// Fail fast rather than ship sessions signed with a public default secret.
+if (isLive && process.env.NODE_ENV === 'production' && config.jwtSecret === DEFAULT_JWT_SECRET) {
+  throw new Error(
+    '[gatekeep] JWT_SECRET is still the default in a production chain-mode deployment. Set JWT_SECRET.',
+  );
+}
 
 /** True when ERC-8004 identity/reputation features are available. */
 export const erc8004Enabled =

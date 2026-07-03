@@ -1,10 +1,12 @@
 import express from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from './config.js';
 import { store } from './store.js';
+import { gatewayRateLimit } from './rateLimit.js';
 import { apiRouter } from './routes/api.js';
 import { authRouter } from './routes/auth.js';
 import { gatewayRouter } from './routes/gateway.js';
@@ -14,6 +16,10 @@ import { facilitatorRouter } from './routes/facilitator.js';
 // long-running server (src/server.ts) and a serverless function (api/index.ts).
 export const app = express();
 app.disable('x-powered-by');
+// Behind Vercel/Render the client IP arrives via X-Forwarded-For; without this
+// req.ip would be the proxy's address and the rate limiter would lump everyone
+// into one bucket.
+app.set('trust proxy', 1);
 app.use(
   cors({
     origin: true,
@@ -36,8 +42,9 @@ app.use((req, res, next) => {
 });
 
 // The gateway proxies arbitrary upstreams, so it needs the raw request body
-// (mounted before any JSON parser).
-app.use('/g', express.raw({ type: '*/*', limit: '5mb' }), gatewayRouter);
+// (mounted before any JSON parser). Rate-limited per IP — it's the only
+// unauthenticated write-ish surface.
+app.use('/g', gatewayRateLimit, express.raw({ type: '*/*', limit: '5mb' }), gatewayRouter);
 
 // JSON control-plane APIs.
 app.use('/api/auth', express.json({ limit: '1mb' }), authRouter);
@@ -70,5 +77,13 @@ if (hasDist) {
     }),
   );
 }
+
+// Last resort: async route errors forwarded by asyncRoute() land here instead
+// of crashing the process (or hanging the request).
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  console.error('[gatekeep] unhandled route error:', err);
+  if (res.headersSent) return;
+  res.status(500).json({ error: 'internal_error' });
+});
 
 export default app;

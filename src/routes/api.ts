@@ -4,9 +4,12 @@ import { z } from 'zod';
 import { config, isLive, erc8004Enabled, platformFeeRate } from '../config.js';
 import { store } from '../store.js';
 import { round6, splitRevenue } from '../revenue.js';
+import { computeAnalytics } from '../analytics.js';
+import { generateDemoCalls } from '../demo-data.js';
 import { addressForKey, signPayment } from '../x402/signer.js';
 import { encodePaymentHeader } from '../x402/protocol.js';
 import { requireAuth, ownerOf } from '../auth.js';
+import { asyncRoute } from '../http.js';
 import { EXAMPLES } from '../seed.js';
 import type { GatedEndpoint } from '../types.js';
 
@@ -73,7 +76,7 @@ const CreateSchema = z.object({
   minReputation: z.coerce.number().int().min(0).max(1000).optional().default(0),
 });
 
-apiRouter.post('/endpoints', async (req, res) => {
+apiRouter.post('/endpoints', asyncRoute(async (req, res) => {
   const parsed = CreateSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Invalid endpoint', issues: parsed.error.flatten() });
@@ -88,11 +91,10 @@ apiRouter.post('/endpoints', async (req, res) => {
   };
   await store.addEndpoint(endpoint);
   res.status(201).json(withStats(endpoint));
-});
+}));
 
 // Seed the seller's account with the example endpoints.
-apiRouter.post('/examples', async (req, res) => {
-  const owner = ownerOf(req);
+async function seedExamples(owner: string): Promise<number> {
   const existing = new Set(store.listEndpoints(owner).map((e) => e.name));
   let added = 0;
   for (const ex of EXAMPLES) {
@@ -100,12 +102,34 @@ apiRouter.post('/examples', async (req, res) => {
     await store.addEndpoint({ id: nanoid(8), ownerAddress: owner, createdAt: Date.now() - added * 1000, active: true, ...ex });
     added++;
   }
+  return added;
+}
+
+apiRouter.post('/examples', asyncRoute(async (req, res) => {
+  const owner = ownerOf(req);
+  const added = await seedExamples(owner);
   res.json({ added, endpoints: store.listEndpoints(owner).map(withStats) });
-});
+}));
+
+// ── Demo traffic: synthetic 30-day history so analytics demos well. ──
+// Records are flagged `demo: true`, never carry a txHash, and are excluded from
+// withdrawable earnings — so they can't pollute a real on-chain payout. Note:
+// bulk-adding ≤300 records can evict the oldest records via the global 2000-cap.
+apiRouter.post('/demo-data', asyncRoute(async (req, res) => {
+  const owner = ownerOf(req);
+  if (store.listEndpoints(owner).length === 0) await seedExamples(owner);
+  await store.removeDemoCalls(owner); // idempotent regenerate
+  const added = await store.addCallsBulk(generateDemoCalls(store.listEndpoints(owner)));
+  res.json({ added });
+}));
+
+apiRouter.delete('/demo-data', asyncRoute(async (req, res) => {
+  res.json({ removed: await store.removeDemoCalls(ownerOf(req)) });
+}));
 
 // Resolve an endpoint and enforce ownership.
-function ownedEndpoint(req: { params: { id: string } } & object, owner: string) {
-  const e = store.getEndpoint((req.params as { id: string }).id);
+function ownedEndpoint(req: { params: Record<string, string | undefined> }, owner: string) {
+  const e = store.getEndpoint(req.params.id ?? '');
   if (!e || e.ownerAddress !== owner) return null;
   return e;
 }
@@ -129,7 +153,7 @@ const PatchSchema = z.object({
   minReputation: z.coerce.number().int().min(0).max(1000).optional(),
 });
 
-apiRouter.patch('/endpoints/:id', async (req, res) => {
+apiRouter.patch('/endpoints/:id', asyncRoute(async (req, res) => {
   if (!ownedEndpoint(req, ownerOf(req))) {
     res.status(404).json({ error: 'Not found' });
     return;
@@ -141,15 +165,15 @@ apiRouter.patch('/endpoints/:id', async (req, res) => {
   }
   const updated = (await store.updateEndpoint(req.params.id, parsed.data))!;
   res.json(withStats(updated));
-});
+}));
 
-apiRouter.delete('/endpoints/:id', async (req, res) => {
+apiRouter.delete('/endpoints/:id', asyncRoute(async (req, res) => {
   if (!ownedEndpoint(req, ownerOf(req))) {
     res.status(404).json({ deleted: false, error: 'Not found' });
     return;
   }
   res.json({ deleted: await store.deleteEndpoint(req.params.id) });
-});
+}));
 
 // ── The seller's call feed + earnings. ──
 apiRouter.get('/calls', (req, res) => {
@@ -161,7 +185,10 @@ apiRouter.get('/stats', (req, res) => {
   const owner = ownerOf(req);
   const calls = store.callsForOwner(owner);
   const paid = calls.filter((c) => c.paid);
-  const earningsUsd = round6(paid.reduce((s, c) => s + c.sellerEarningsUsd, 0));
+  // Withdrawable money comes from REAL settled calls only — demo records are
+  // synthetic and must never be payable on-chain.
+  const realPaid = paid.filter((c) => !c.demo);
+  const earningsUsd = round6(realPaid.reduce((s, c) => s + c.sellerEarningsUsd, 0));
   const withdrawnUsd = round6(store.withdrawnUsdForOwner(owner));
   res.json({
     endpoints: store.listEndpoints(owner).length,
@@ -174,7 +201,25 @@ apiRouter.get('/stats', (req, res) => {
     availableUsd: round6(Math.max(0, earningsUsd - withdrawnUsd)),
     canWithdraw: isLive && !!config.platformPrivateKey,
     lastWithdrawal: store.withdrawalsForOwner(owner)[0] ?? null,
+    hasDemoData: calls.some((c) => c.demo),
+    demoEarningsUsd: round6(paid.filter((c) => c.demo).reduce((s, c) => s + c.sellerEarningsUsd, 0)),
   });
+});
+
+// ── Owner analytics: time-series, per-endpoint breakdown, agents, latency. ──
+const RangeSchema = z.enum(['24h', '7d', '30d']).catch('7d');
+apiRouter.get('/analytics', (req, res) => {
+  const owner = ownerOf(req);
+  res.json(
+    computeAnalytics(
+      {
+        calls: store.callsForOwner(owner),
+        endpoints: store.listEndpoints(owner),
+        ledgerAtCap: store.allCalls().length >= 2000,
+      },
+      RangeSchema.parse(req.query.range),
+    ),
+  );
 });
 
 // ── Withdraw earned USDC to your wallet (on-chain payout). ──
@@ -184,13 +229,14 @@ function explorerTx(hash: string): string {
   return hash;
 }
 
-apiRouter.post('/withdraw', async (req, res) => {
+apiRouter.post('/withdraw', asyncRoute(async (req, res) => {
   const owner = ownerOf(req);
   if (!isLive || !config.platformPrivateKey) {
     res.status(400).json({ error: 'Withdrawals require chain mode with a funded platform wallet.' });
     return;
   }
-  const paid = store.callsForOwner(owner).filter((c) => c.paid);
+  // `!c.demo`: synthetic demo traffic is never withdrawable.
+  const paid = store.callsForOwner(owner).filter((c) => c.paid && !c.demo);
   const earningsUsd = round6(paid.reduce((s, c) => s + c.sellerEarningsUsd, 0));
   const withdrawnUsd = round6(store.withdrawnUsdForOwner(owner));
   const availableUsd = round6(earningsUsd - withdrawnUsd);
@@ -207,7 +253,7 @@ apiRouter.post('/withdraw', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Payout failed', detail: err instanceof Error ? err.message : String(err) });
   }
-});
+}));
 
 // ── Agent playground: run the full pay round-trip and return a transcript. ──
 interface Step {
@@ -218,7 +264,7 @@ interface Step {
   data?: unknown;
 }
 
-apiRouter.post('/endpoints/:id/simulate', async (req, res) => {
+apiRouter.post('/endpoints/:id/simulate', asyncRoute(async (req, res) => {
   const endpoint = ownedEndpoint(req, ownerOf(req));
   if (!endpoint || !endpoint.active) {
     res.status(404).json({ error: 'No active gated endpoint with that id.' });
@@ -330,7 +376,7 @@ apiRouter.post('/endpoints/:id/simulate', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Simulation failed', detail: err instanceof Error ? err.message : String(err), steps });
   }
-});
+}));
 
 // ── formatting helpers ──
 function shorten(addr: string): string {

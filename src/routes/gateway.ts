@@ -12,6 +12,7 @@ import {
   X402_VERSION,
 } from '../x402/protocol.js';
 import { verifyPayment, settlePayment, type SettleResult } from '../x402/facilitator.js';
+import { asyncRoute } from '../http.js';
 import type { GatedEndpoint, CallRecord, PaymentRequirements } from '../types.js';
 
 /** Headers we must not forward to the upstream origin. */
@@ -261,5 +262,5 @@ async function handleGateway(req: Request, res: Response): Promise<void> {
 }
 
 export const gatewayRouter = Router();
-gatewayRouter.all('/:id', handleGateway);
-gatewayRouter.all('/:id/*', handleGateway);
+gatewayRouter.all('/:id', asyncRoute(handleGateway));
+gatewayRouter.all('/:id/*', asyncRoute(handleGateway));

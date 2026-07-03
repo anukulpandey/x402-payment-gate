@@ -42,6 +42,8 @@ export interface CallRecord {
   payer?: string;
   /** Settlement transaction hash. */
   txHash?: string;
+  /** True for synthetic records created by POST /api/demo-data (removable, never withdrawable). */
+  demo?: boolean;
   /** ERC-8004 agent identity of the payer (0/undefined = unregistered). */
   agentId?: number;
   /** Payer's ERC-8004 reputation at call time. */

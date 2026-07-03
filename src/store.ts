@@ -12,6 +12,14 @@ interface DB {
 const empty = (): DB => ({ endpoints: [], calls: [], withdrawals: [] });
 let db: DB = empty();
 
+// O(1) endpoint lookup for the hot gateway path (every /g/:id request hits it).
+// Rebuilt on load; kept in sync by add/delete (update mutates in place, so the
+// Map entry stays valid).
+let endpointIndex = new Map<string, GatedEndpoint>();
+function reindex() {
+  endpointIndex = new Map(db.endpoints.map((e) => [e.id, e]));
+}
+
 // ── backend selection ───────────────────────────────────────────────────────
 // Redis (Upstash) when configured — for stateless/serverless hosts (Vercel)
 // where the filesystem is read-only and each request is a fresh instance.
@@ -51,6 +59,7 @@ async function loadRedis() {
     const raw = await r.get(REDIS_KEY);
     const parsed = (typeof raw === 'string' ? JSON.parse(raw) : raw) as Partial<DB> | null;
     db = normalize(parsed);
+    reindex();
   } catch (err) {
     console.error('[store] redis load failed:', err);
   }
@@ -77,6 +86,7 @@ function loadFile() {
   } catch (err) {
     console.error('[store] failed to load db, starting fresh:', err);
   }
+  reindex();
 }
 
 function writeNow() {
@@ -147,10 +157,11 @@ export const store = {
     return [...list].sort((a, b) => b.createdAt - a.createdAt);
   },
   getEndpoint(id: string): GatedEndpoint | undefined {
-    return db.endpoints.find((e) => e.id === id);
+    return endpointIndex.get(id);
   },
   async addEndpoint(endpoint: GatedEndpoint): Promise<GatedEndpoint> {
     db.endpoints.unshift(endpoint);
+    endpointIndex.set(endpoint.id, endpoint);
     await save();
     return endpoint;
   },
@@ -165,6 +176,7 @@ export const store = {
     const i = db.endpoints.findIndex((e) => e.id === id);
     if (i < 0) return false;
     db.endpoints.splice(i, 1);
+    endpointIndex.delete(id);
     db.calls = db.calls.filter((c) => c.endpointId !== id);
     await save();
     return true;
@@ -174,6 +186,25 @@ export const store = {
     if (db.calls.length > 2000) db.calls.length = 2000;
     await save();
     return call;
+  },
+  /**
+   * Insert many records at once (demo-data seeding). NOT a loop over addCall —
+   * these records carry historical timestamps, and unshifting them would break
+   * the newest-first invariant that /api/calls and analytics rely on. One
+   * re-sort, one cap, one save.
+   */
+  async addCallsBulk(calls: CallRecord[]): Promise<number> {
+    db.calls = [...db.calls, ...calls].sort((a, b) => b.ts - a.ts);
+    if (db.calls.length > 2000) db.calls.length = 2000;
+    await save();
+    return calls.length;
+  },
+  /** Purge one owner's synthetic demo records (see POST /api/demo-data). */
+  async removeDemoCalls(owner: string): Promise<number> {
+    const before = db.calls.length;
+    db.calls = db.calls.filter((c) => !(c.demo && c.ownerAddress === owner));
+    if (before !== db.calls.length) await save();
+    return before - db.calls.length;
   },
   listCalls(limit = 50, endpointId?: string): CallRecord[] {
     const calls = endpointId ? db.calls.filter((c) => c.endpointId === endpointId) : db.calls;

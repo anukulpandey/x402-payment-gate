@@ -82,7 +82,9 @@ export function readSession(req: Request): string | null {
   const token = (req as Request & { cookies?: Record<string, string> }).cookies?.[COOKIE];
   if (!token) return null;
   try {
-    return (jwt.verify(token, config.jwtSecret) as { sub: string }).sub;
+    // Pin the algorithm — never let a tampered token downgrade to `none` or swap
+    // to an asymmetric scheme (classic JWT algorithm-confusion attack).
+    return (jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] }) as { sub: string }).sub;
   } catch {
     return null;
   }

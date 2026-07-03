@@ -87,7 +87,7 @@ function DashboardContent({ address }: { address: string }) {
       })
       .catch(() => undefined);
     refresh();
-    const id = setInterval(refresh, 2500);
+    const id = setInterval(refresh, 5000);
     return () => clearInterval(id);
   }, [refresh]);
 
