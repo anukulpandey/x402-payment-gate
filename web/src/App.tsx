@@ -27,13 +27,20 @@ function Layout() {
 
 function NotFound() {
   return (
-    <Container className="py-32 text-center">
-      <div className="text-5xl font-semibold text-white">404</div>
-      <p className="mt-3 text-slate-400">This page wandered off-chain.</p>
-      <Link to="/" className={`mt-6 inline-flex ${btn('primary')}`}>
-        Back home
-      </Link>
-    </Container>
+    <div className="grid-bg">
+      <Container className="fade-up py-32 text-center">
+        <div className="gradient-text font-mono text-7xl font-semibold">404</div>
+        <p className="mt-4 text-slate-400">This page wandered off-chain.</p>
+        <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+          <Link to="/" className={btn('primary')}>
+            Back home
+          </Link>
+          <Link to="/docs" className={btn('outline')}>
+            Read the docs
+          </Link>
+        </div>
+      </Container>
+    </div>
   );
 }
 

@@ -1,11 +1,24 @@
 import { Link } from 'react-router-dom';
 import { Container, Card, Eyebrow, SectionHeading, btn, cx } from '../components/ui';
+import { HeroFlow } from '../components/HeroFlow';
+import { CountUp } from '../components/CountUp';
+import { Reveal } from '../hooks/useReveal';
+import { usePointerGlow } from '../hooks/usePointerGlow';
+import {
+  IconBolt,
+  IconChain,
+  IconCpu,
+  IconPuzzle,
+  IconSplit,
+  IconWallet,
+} from '../components/icons';
 
 export function Landing() {
   return (
     <div>
       <Hero />
       <TrustStrip />
+      <StatsBand />
       <HowItWorks />
       <Features />
       <FlowDemo />
@@ -18,8 +31,10 @@ export function Landing() {
 
 /* ── Hero ───────────────────────────────────────────────────────────────── */
 function Hero() {
+  const glowRef = usePointerGlow<HTMLElement>();
   return (
-    <section className="grid-bg relative overflow-hidden border-b border-white/8">
+    <section ref={glowRef} className="grid-bg relative overflow-hidden border-b border-white/8">
+      <div aria-hidden className="hero-glow" />
       <Container className="relative py-20 sm:py-28">
         <div className="grid items-center gap-12 lg:grid-cols-2">
           <div className="fade-up">
@@ -48,8 +63,8 @@ function Hero() {
               <span>Connect a wallet — no signup</span>
             </div>
           </div>
-          <div className="fade-up" style={{ animationDelay: '0.1s' }}>
-            <ExchangeCard />
+          <div className="fade-up flex justify-center lg:justify-end" style={{ animationDelay: '0.1s' }}>
+            <HeroFlow />
           </div>
         </div>
       </Container>
@@ -57,50 +72,52 @@ function Hero() {
   );
 }
 
-function ExchangeCard() {
-  return (
-    <Card className="overflow-hidden">
-      <div className="flex items-center gap-2 border-b border-white/8 px-4 py-2.5">
-        <span className="h-2.5 w-2.5 rounded-full bg-red-400/70" />
-        <span className="h-2.5 w-2.5 rounded-full bg-amber-400/70" />
-        <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/70" />
-        <span className="ml-2 font-mono text-[11px] text-slate-500">agent → your gated API</span>
-      </div>
-      <div className="space-y-3 p-4 font-mono text-[12.5px] leading-relaxed">
-        <div>
-          <span className="text-slate-500">$ GET</span> <span className="text-slate-300">/g/btc-oracle</span>
-        </div>
-        <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2 text-amber-300">
-          402 Payment Required <span className="text-amber-300/60">· price $0.01 USDC</span>
-        </div>
-        <div>
-          <span className="text-slate-500">$ GET</span> <span className="text-slate-300">/g/btc-oracle</span>{' '}
-          <span className="text-accent-300">+ X-PAYMENT</span>
-        </div>
-        <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-2 text-emerald-200">
-          200 OK <span className="text-emerald-300/70">{'{ "bitcoin": { "usd": 61124 } }'}</span>
-        </div>
-        <div className="flex items-center justify-between border-t border-white/8 pt-3 text-[11px] text-slate-500">
-          <span>settled on-chain · 0.01 USDC</span>
-          <span className="text-emerald-300">you earn +$0.009</span>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-/* ── Trust strip ────────────────────────────────────────────────────────── */
+/* ── Trust strip (seamless marquee) ─────────────────────────────────────── */
 function TrustStrip() {
   const items = ['x402 protocol', 'USDC', 'EIP-3009', 'Avalanche', 'viem', 'MetaMask', 'EIP-712', 'Snowtrace'];
   return (
     <div className="border-b border-white/8 py-6">
       <Container>
-        <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-slate-500">
-          <span className="text-xs uppercase tracking-wide text-slate-600">Built on</span>
-          {items.map((i) => (
-            <span key={i} className="font-medium text-slate-400">
-              {i}
-            </span>
+        <div className="flex items-center gap-6">
+          <span className="shrink-0 text-xs uppercase tracking-wide text-slate-600">Built on</span>
+          <div className="marquee-mask min-w-0 flex-1 overflow-hidden">
+            <div className="marquee flex w-max items-center">
+              {[...items, ...items].map((label, i) => (
+                <span
+                  key={i}
+                  aria-hidden={i >= items.length}
+                  className="pr-10 text-sm font-medium whitespace-nowrap text-slate-400"
+                >
+                  {label}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Container>
+    </div>
+  );
+}
+
+/* ── Stats band (animated counters) ─────────────────────────────────────── */
+function StatsBand() {
+  const stats: { value: React.ReactNode; label: string }[] = [
+    { value: <CountUp to={1} />, label: 'extra round trip — 402 → pay → 200' },
+    { value: <CountUp to={0.001} decimals={3} prefix="$" />, label: 'minimum price per call' },
+    { value: <CountUp to={10} suffix="%" />, label: 'flat fee — you keep the rest' },
+    { value: <CountUp to={0} />, label: 'gas paid by agents — the facilitator covers it' },
+  ];
+  return (
+    <div className="border-b border-white/8 py-12">
+      <Container>
+        <div className="grid grid-cols-2 gap-8 lg:grid-cols-4">
+          {stats.map((s, i) => (
+            <Reveal key={s.label} delay={i * 80} className="text-center">
+              <div className="font-mono text-3xl font-semibold text-white sm:text-4xl">
+                <span className="text-accent-300">{s.value}</span>
+              </div>
+              <div className="mx-auto mt-2 max-w-[220px] text-xs leading-relaxed text-slate-500">{s.label}</div>
+            </Reveal>
           ))}
         </div>
       </Container>
@@ -135,19 +152,23 @@ function HowItWorks() {
   return (
     <section className="py-20 sm:py-24">
       <Container>
-        <SectionHeading
-          eyebrow="How it works"
-          title="From REST endpoint to revenue in four steps"
-          sub="No invoices, no subscriptions, no chargebacks. Just per-request payments that settle in seconds."
-          center
-        />
+        <Reveal>
+          <SectionHeading
+            eyebrow="How it works"
+            title="From REST endpoint to revenue in four steps"
+            sub="No invoices, no subscriptions, no chargebacks. Just per-request payments that settle in seconds."
+            center
+          />
+        </Reveal>
         <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {steps.map((s) => (
-            <Card key={s.n} className="p-6">
-              <div className="font-mono text-sm text-accent-400">{s.n}</div>
-              <h3 className="mt-2 text-lg font-semibold text-white">{s.t}</h3>
-              <p className="mt-1.5 text-sm leading-relaxed text-slate-400">{s.d}</p>
-            </Card>
+          {steps.map((s, i) => (
+            <Reveal key={s.n} delay={i * 80} className="hiw-step relative">
+              <Card className="h-full p-6">
+                <div className="font-mono text-sm text-accent-400">{s.n}</div>
+                <h3 className="mt-2 text-lg font-semibold text-white">{s.t}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-slate-400">{s.d}</p>
+              </Card>
+            </Reveal>
           ))}
         </div>
       </Container>
@@ -158,28 +179,40 @@ function HowItWorks() {
 /* ── Features ──────────────────────────────────────────────────────────── */
 function Features() {
   const features = [
-    { icon: '⚡', t: 'One-click gating', d: 'Wrap any endpoint behind a paywall in seconds — no SDK to install, no code to change.' },
-    { icon: '🤖', t: 'Autonomous payments', d: 'Agents pay programmatically with any standard x402 client. No accounts, no API keys.' },
-    { icon: '⛓️', t: 'On-chain settlement', d: 'Real USDC transfers via EIP-3009. Gasless for the agent; the facilitator covers gas.' },
-    { icon: '💸', t: 'Revenue split', d: 'You keep the lion’s share of every call. GateKeep takes a small, transparent cut.' },
-    { icon: '🔐', t: 'Wallet login', d: 'Sign in with MetaMask — your wallet is your account and your payout address.' },
-    { icon: '🧩', t: 'Protocol-native', d: 'Speaks the real x402 spec, so x402-fetch, AgentKit, and others work unmodified.' },
+    { Icon: IconBolt, t: 'One-click gating', d: 'Wrap any endpoint behind a paywall in seconds — no SDK to install, no code to change.' },
+    { Icon: IconCpu, t: 'Autonomous payments', d: 'Agents pay programmatically with any standard x402 client. No accounts, no API keys.' },
+    { Icon: IconChain, t: 'On-chain settlement', d: 'Real USDC transfers via EIP-3009. Gasless for the agent; the facilitator covers gas.' },
+    { Icon: IconSplit, t: 'Revenue split', d: 'You keep the lion’s share of every call. GateKeep takes a small, transparent cut.' },
+    { Icon: IconWallet, t: 'Wallet login', d: 'Sign in with MetaMask — your wallet is your account and your payout address.' },
+    { Icon: IconPuzzle, t: 'Protocol-native', d: 'Speaks the real x402 spec, so x402-fetch, AgentKit, and others work unmodified.' },
   ];
   return (
     <section className="border-y border-white/8 bg-white/[0.015] py-20 sm:py-24">
       <Container>
-        <SectionHeading
-          eyebrow="Why GateKeep"
-          title="Everything you need to monetize an API for agents"
-          center
-        />
+        <Reveal>
+          <SectionHeading
+            eyebrow="Why GateKeep"
+            title="Everything you need to monetize an API for agents"
+            center
+          />
+        </Reveal>
         <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((f) => (
-            <Card key={f.t} className="p-6 transition hover:border-accent-500/30">
-              <div className="grid h-11 w-11 place-items-center rounded-xl bg-accent-500/10 text-xl">{f.icon}</div>
-              <h3 className="mt-4 text-base font-semibold text-white">{f.t}</h3>
-              <p className="mt-1.5 text-sm leading-relaxed text-slate-400">{f.d}</p>
-            </Card>
+          {features.map((f, i) => (
+            <Reveal key={f.t} delay={(i % 3) * 80}>
+              <Card
+                className={cx(
+                  'h-full p-6 transition duration-300',
+                  'hover:-translate-y-1 hover:border-accent-500/40',
+                  'hover:shadow-[0_12px_40px_-12px_rgba(99,102,241,0.35)]',
+                )}
+              >
+                <div className="grid h-11 w-11 place-items-center rounded-xl bg-accent-500/10 text-xl ring-1 ring-inset ring-accent-500/20">
+                  <f.Icon className="h-5 w-5 text-accent-300" />
+                </div>
+                <h3 className="mt-4 text-base font-semibold text-white">{f.t}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-slate-400">{f.d}</p>
+              </Card>
+            </Reveal>
           ))}
         </div>
       </Container>
@@ -193,7 +226,7 @@ function FlowDemo() {
     <section className="py-20 sm:py-24">
       <Container>
         <div className="grid items-center gap-12 lg:grid-cols-2">
-          <div>
+          <Reveal>
             <SectionHeading
               eyebrow="For agent developers"
               title="Any x402 client just works"
@@ -214,28 +247,44 @@ function FlowDemo() {
                 </li>
               ))}
             </ul>
-          </div>
-          <Card className="overflow-hidden">
-            <div className="border-b border-white/8 px-4 py-2.5 font-mono text-[11px] text-slate-500">
-              agent.ts
-            </div>
-            <pre className="overflow-x-auto p-5 font-mono text-[12.5px] leading-relaxed text-slate-300">
-              <span className="text-accent-300">import</span> {'{ wrapFetchWithPayment }'}{' '}
-              <span className="text-accent-300">from</span> <span className="text-emerald-300">'x402-fetch'</span>;{'\n'}
-              <span className="text-accent-300">import</span> {'{ createSigner }'}{' '}
-              <span className="text-accent-300">from</span> <span className="text-emerald-300">'x402/types'</span>;{'\n\n'}
-              <span className="text-slate-500">{'// your agent’s wallet, holding USDC'}</span>
-              {'\n'}
-              <span className="text-accent-300">const</span> signer = <span className="text-accent-300">await</span>{' '}
-              createSigner(<span className="text-emerald-300">'avalanche-fuji'</span>, KEY);{'\n'}
-              <span className="text-accent-300">const</span> pay = wrapFetchWithPayment(fetch, signer);{'\n\n'}
-              <span className="text-slate-500">{'// just fetch — payment happens on 402'}</span>
-              {'\n'}
-              <span className="text-accent-300">const</span> res = <span className="text-accent-300">await</span> pay(
-              {'\n'}  <span className="text-emerald-300">'https://gatekeep.app/g/btc-oracle'</span>,{'\n'});{'\n'}
-              console.log(<span className="text-accent-300">await</span> res.json());
-            </pre>
-          </Card>
+          </Reveal>
+          <Reveal delay={120}>
+            <Card className="overflow-hidden">
+              <div className="border-b border-white/8 px-4 py-2.5 font-mono text-[11px] text-slate-500">
+                agent.ts
+              </div>
+              <pre className="overflow-x-auto p-5 font-mono text-[12.5px] leading-relaxed text-slate-300">
+                <span className="text-accent-300">import</span> {'{ wrapFetchWithPayment }'}{' '}
+                <span className="text-accent-300">from</span> <span className="text-emerald-300">'x402-fetch'</span>;{'\n'}
+                <span className="text-accent-300">import</span> {'{ createSigner }'}{' '}
+                <span className="text-accent-300">from</span> <span className="text-emerald-300">'x402/types'</span>;{'\n\n'}
+                <span className="text-slate-500">{'// your agent’s wallet, holding USDC'}</span>
+                {'\n'}
+                <span className="text-accent-300">const</span> signer = <span className="text-accent-300">await</span>{' '}
+                createSigner(<span className="text-emerald-300">'avalanche-fuji'</span>, KEY);{'\n'}
+                <span className="text-accent-300">const</span> pay = wrapFetchWithPayment(fetch, signer);{'\n\n'}
+                <span className="text-slate-500">{'// just fetch — payment happens on 402'}</span>
+                {'\n'}
+                <span className="text-accent-300">const</span> res = <span className="text-accent-300">await</span> pay(
+                {'\n'}  <span className="text-emerald-300">'https://gatekeep.app/g/btc-oracle'</span>,{'\n'});{'\n'}
+                console.log(<span className="text-accent-300">await</span> res.json());
+              </pre>
+              <div className="term border-t border-white/8 p-4 font-mono text-[12px] leading-relaxed">
+                <p className="type-line text-slate-400" style={{ '--n': 19, '--td': '0ms' } as React.CSSProperties}>
+                  $ GET /g/btc-oracle
+                </p>
+                <p className="type-line text-amber-300" style={{ '--n': 33, '--td': '1300ms' } as React.CSSProperties}>
+                  402 Payment Required · $0.01 USDC
+                </p>
+                <p className="type-line text-slate-400" style={{ '--n': 31, '--td': '2900ms' } as React.CSSProperties}>
+                  $ GET /g/btc-oracle + X-PAYMENT
+                </p>
+                <p className="type-line text-emerald-300" style={{ '--n': 44, '--td': '4500ms' } as React.CSSProperties}>
+                  200 OK · settled on-chain · you earn +$0.009
+                </p>
+              </div>
+            </Card>
+          </Reveal>
         </div>
       </Container>
     </section>
@@ -247,46 +296,52 @@ function Pricing() {
   return (
     <section id="pricing" className="scroll-mt-20 border-y border-white/8 bg-white/[0.015] py-20 sm:py-24">
       <Container>
-        <SectionHeading
-          eyebrow="Pricing"
-          title="Free to start. We earn only when you do."
-          sub="No monthly fees, no minimums. GateKeep takes a flat cut of each settled call — you keep the rest, paid to your wallet."
-          center
-        />
+        <Reveal>
+          <SectionHeading
+            eyebrow="Pricing"
+            title="Free to start. We earn only when you do."
+            sub="No monthly fees, no minimums. GateKeep takes a flat cut of each settled call — you keep the rest, paid to your wallet."
+            center
+          />
+        </Reveal>
         <div className="mx-auto mt-12 grid max-w-3xl gap-5 sm:grid-cols-2">
-          <Card className="p-7">
-            <div className="text-sm font-medium text-slate-400">You keep</div>
-            <div className="mt-1 text-4xl font-semibold text-emerald-300">90%</div>
-            <div className="mt-1 text-sm text-slate-500">of every call, settled to your wallet</div>
-            <ul className="mt-5 space-y-2.5 text-sm text-slate-300">
-              {['Unlimited gated endpoints', 'Per-call USDC settlement', 'Live dashboard & call ledger', 'Wallet-based login'].map(
-                (t) => (
-                  <li key={t} className="flex items-center gap-2">
-                    <span className="text-emerald-400">✓</span> {t}
-                  </li>
-                ),
-              )}
-            </ul>
-          </Card>
-          <Card className="p-7 ring-1 ring-accent-500/30">
-            <div className="text-sm font-medium text-slate-400">GateKeep fee</div>
-            <div className="mt-1 text-4xl font-semibold text-accent-300">10%</div>
-            <div className="mt-1 text-sm text-slate-500">flat, per settled call — nothing else</div>
-            <div className="mt-5 rounded-xl border border-white/8 bg-black/20 p-4 font-mono text-xs text-slate-400">
-              <div className="flex justify-between">
-                <span>Agent pays</span>
-                <span className="text-white">$0.010</span>
+          <Reveal>
+            <Card className="h-full p-7">
+              <div className="text-sm font-medium text-slate-400">You keep</div>
+              <div className="mt-1 text-4xl font-semibold text-emerald-300">90%</div>
+              <div className="mt-1 text-sm text-slate-500">of every call, settled to your wallet</div>
+              <ul className="mt-5 space-y-2.5 text-sm text-slate-300">
+                {['Unlimited gated endpoints', 'Per-call USDC settlement', 'Live analytics & call ledger', 'Wallet-based login'].map(
+                  (t) => (
+                    <li key={t} className="flex items-center gap-2">
+                      <span className="text-emerald-400">✓</span> {t}
+                    </li>
+                  ),
+                )}
+              </ul>
+            </Card>
+          </Reveal>
+          <Reveal delay={100}>
+            <Card className="h-full p-7 ring-1 ring-accent-500/30">
+              <div className="text-sm font-medium text-slate-400">GateKeep fee</div>
+              <div className="mt-1 text-4xl font-semibold text-accent-300">10%</div>
+              <div className="mt-1 text-sm text-slate-500">flat, per settled call — nothing else</div>
+              <div className="mt-5 rounded-xl border border-white/8 bg-black/20 p-4 font-mono text-xs text-slate-400">
+                <div className="flex justify-between">
+                  <span>Agent pays</span>
+                  <span className="text-white">$0.010</span>
+                </div>
+                <div className="mt-1 flex justify-between">
+                  <span>You earn</span>
+                  <span className="text-emerald-300">$0.009</span>
+                </div>
+                <div className="mt-1 flex justify-between">
+                  <span>GateKeep</span>
+                  <span className="text-accent-300">$0.001</span>
+                </div>
               </div>
-              <div className="mt-1 flex justify-between">
-                <span>You earn</span>
-                <span className="text-emerald-300">$0.009</span>
-              </div>
-              <div className="mt-1 flex justify-between">
-                <span>GateKeep</span>
-                <span className="text-accent-300">$0.001</span>
-              </div>
-            </div>
-          </Card>
+            </Card>
+          </Reveal>
         </div>
         <div className="mt-8 text-center">
           <Link to="/app" className={btn('primary', 'lg')}>
@@ -325,18 +380,22 @@ function Faq() {
   return (
     <section className="py-20 sm:py-24">
       <Container>
-        <SectionHeading eyebrow="FAQ" title="Questions, answered" center />
-        <div className="mx-auto mt-10 max-w-3xl divide-y divide-white/8">
-          {qs.map((item) => (
-            <details key={item.q} className="group py-5">
-              <summary className="flex cursor-pointer list-none items-center justify-between text-[15px] font-medium text-white">
-                {item.q}
-                <span className="text-slate-500 transition group-open:rotate-45">+</span>
-              </summary>
-              <p className="mt-3 text-sm leading-relaxed text-slate-400">{item.a}</p>
-            </details>
-          ))}
-        </div>
+        <Reveal>
+          <SectionHeading eyebrow="FAQ" title="Questions, answered" center />
+        </Reveal>
+        <Reveal delay={80}>
+          <div className="mx-auto mt-10 max-w-3xl divide-y divide-white/8">
+            {qs.map((item) => (
+              <details key={item.q} className="group py-5">
+                <summary className="flex cursor-pointer list-none items-center justify-between text-[15px] font-medium text-white">
+                  {item.q}
+                  <span className="text-slate-500 transition group-open:rotate-45">+</span>
+                </summary>
+                <p className="mt-3 text-sm leading-relaxed text-slate-400">{item.a}</p>
+              </details>
+            ))}
+          </div>
+        </Reveal>
       </Container>
     </section>
   );
@@ -347,27 +406,29 @@ function CtaBand() {
   return (
     <section className="py-12">
       <Container>
-        <div
-          className={cx(
-            'grid-bg overflow-hidden rounded-3xl border border-accent-500/20 px-8 py-14 text-center',
-            'bg-gradient-to-b from-accent-500/[0.08] to-transparent',
-          )}
-        >
-          <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-            Start gating your API in two minutes
-          </h2>
-          <p className="mx-auto mt-3 max-w-xl text-slate-400">
-            Connect your wallet, paste an endpoint, set a price. The agent economy will do the rest.
-          </p>
-          <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
-            <Link to="/app" className={btn('primary', 'lg')}>
-              Launch dashboard →
-            </Link>
-            <Link to="/docs" className={btn('outline', 'lg')}>
-              Read the docs
-            </Link>
+        <Reveal>
+          <div
+            className={cx(
+              'grid-bg overflow-hidden rounded-3xl border border-accent-500/20 px-8 py-14 text-center',
+              'bg-gradient-to-b from-accent-500/[0.08] to-transparent',
+            )}
+          >
+            <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+              Start gating your API in two minutes
+            </h2>
+            <p className="mx-auto mt-3 max-w-xl text-slate-400">
+              Connect your wallet, paste an endpoint, set a price. The agent economy will do the rest.
+            </p>
+            <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+              <Link to="/app" className={btn('primary', 'lg')}>
+                Launch dashboard →
+              </Link>
+              <Link to="/docs" className={btn('outline', 'lg')}>
+                Read the docs
+              </Link>
+            </div>
           </div>
-        </div>
+        </Reveal>
       </Container>
     </section>
   );

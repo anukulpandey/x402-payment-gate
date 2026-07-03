@@ -124,9 +124,13 @@ export function Copyable({ text, label }: { text: string; label?: string }) {
       }
       className="group inline-flex max-w-full items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 font-mono text-xs text-slate-300 transition hover:border-accent-500/40 hover:text-white"
       title="Copy"
+      aria-label={`Copy ${label ?? text}`}
     >
       <span className="truncate">{label ?? text}</span>
-      <span className={cx('shrink-0 transition', copied ? 'text-emerald-400' : 'text-slate-500 group-hover:text-accent-300')}>
+      <span
+        aria-hidden="true"
+        className={cx('shrink-0 transition', copied ? 'text-emerald-400' : 'text-slate-500 group-hover:text-accent-300')}
+      >
         {copied ? '✓' : '⧉'}
       </span>
     </button>
