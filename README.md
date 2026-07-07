@@ -87,7 +87,8 @@ verifiable on [Snowtrace](https://testnet.snowtrace.io).
 
 | Contract | Address | What it does |
 | --- | --- | --- |
-| **MockUSDC** (EIP-3009) | [`0x00ddb787…60cb937`](https://testnet.snowtrace.io/address/0x00ddb7879d626fa6365269dc68c6cb26260cb937) | The USDC test token every payment settles in. Implements `transferWithAuthorization` — gasless, signature-based transfers — the **exact mechanism real Circle USDC uses**, so swapping in real USDC needs no code change. |
+| **USDC** (Circle, EIP-3009) | [`0x5425890…31Bc65`](https://testnet.snowtrace.io/address/0x5425890298aed601595a70AB815c96711a31Bc65) | **The live deployment settles Circle's official Avalanche Fuji USDC** (`"USD Coin"` / v2 / 6 decimals) via `transferWithAuthorization` — real gasless, signature-based transfers. Get testnet USDC from [faucet.circle.com](https://faucet.circle.com). |
+| **MockUSDC** (EIP-3009) | [`0x00ddb787…60cb937`](https://testnet.snowtrace.io/address/0x00ddb7879d626fa6365269dc68c6cb26260cb937) | A drop-in faucet-mintable USDC used for **local / self-hosted** demos (Path A below) — same EIP-3009 interface, so switching between it and Circle USDC is a one-line `USDC_ADDRESS` change. |
 | **IdentityRegistry** (ERC-8004) | [`0xde9786b2…7EA7f73`](https://testnet.snowtrace.io/address/0xde9786b26603a54e35749922495d34fca7ea7f73) | ERC-721 of agent identities. An agent calls `register()` → gets an `agentId` and binds its payment wallet, so a gate can resolve a paying wallet to a known, verifiable agent. |
 | **ReputationRegistry** (ERC-8004) | [`0x34c2d005…05965421`](https://testnet.snowtrace.io/address/0x34c2d005e7a3fc907432f5446aaf077f05965421) | Stores `giveFeedback` attestations about each agent (`getSummary` reads count/score). GateKeep writes a positive attestation after every successful paid call → the agent's reputation grows. |
 
